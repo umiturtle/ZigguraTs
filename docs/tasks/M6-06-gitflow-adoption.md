@@ -64,4 +64,4 @@
 - `python3 scripts/check-docs.py` → `Documentation check OK (180 markdown files verified, 34 reader pages in each of 2 languages)`
 - `./zigw quick-test` → `All 10 tests passed.`
 - PR #30 の `gitflow PR base` ジョブ → pass (8s)
-- Windows CLI smoke が `.zig-cache/o/<hash>/options.zig: FileNotFound` で失敗する事象を 2 回観測（PR イベントの run `43703458399` / `43775508184`）。同じコミットの push イベント run `43703451267` / `43775504522` は pass。`ZIG_LOCAL_CACHE_DIR` と `ZIG_GLOBAL_CACHE_DIR` が同じ `.zig-cache` を指しており、Zig 0.17 の `addOptions` 生成物が競合で消える可能性がある。再実行で切り分け、再発するなら CLI smoke のキャッシュディレクトリ分離を検討する。
+- **Windows CLI smoke のフレークを修正**: `mlugg/setup-zig@v2` は既定で `.zig-cache`（local/global 両方）をジョブ間でキャッシュする。CLI smoke ジョブが古い manifest を復元し、生成物（`options.zig`, `ubsan_rt.lib`）だけ欠けた状態で `FileNotFound` になっていた（PR イベント run `43703458399` / `43775508184` / `43776587182`）。このジョブは「キャッシュなしのユーザーがビルドできるか」の検証なので `use-cache: false` にした。

@@ -718,6 +718,11 @@ jobs:
         uses: mlugg/setup-zig@v2
         with:
           version: 0.17.0
+          # This job is the "a user with no cache can build it" acceptance test. The action's
+          # default cache restore repeatedly left stale `.zig-cache` manifests whose generated
+          # files (options.zig, ubsan_rt.lib) were absent, so `zig build` failed with
+          # `FileNotFound` on Windows. A cold cache is what this job must prove anyway.
+          use-cache: false
 
       - name: Build the `zts` binary
         shell: bash
