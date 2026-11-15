@@ -45,13 +45,16 @@ python3 scripts/check-docs.py && ./zigw fmt --check src/ build.zig build.zig.zon
 ### 1.3 並列エージェントのタスク着手（分散ロック）フロー
 
 1. **`bash scripts/status.sh` を実行**し、`[4] Parallel Agents Radar` に表示される **リモート `arena/*` ブランチ** と **Open PR** を確認する。他エージェントが既に触っている `docs/tasks/<ID>-*.md` や `src/<module>/` には手を出さない。
-2. 自分が担当するタスクの `docs/tasks/<ID>-<slug>.md` を作成し、ヘッダを `- **Status**: in_progress` / `- **Branch**: <自分のブランチ名>` にして **最初に 1 コミット `git push` する**（これにより他エージェントの `status.sh` 上で即座にロックが可視化される）。
+2. 自分が担当するタスクの `docs/tasks/<ID>-<slug>.md` を作成し、ヘッダを `- **Status**: in_progress` / `- **Branch**: <セッションの arena ブランチ>` / `- **PR Head**: feature/<slug>` にして **最初に 1 コミット `git push` する**（これにより他エージェントの `status.sh` 上で即座にロックが可視化される）。
 3. **記憶飛び（コンテキストリセット）に備えるチェックポイント習慣**:
    - 調査完了時・設計確定時・サブテスト通過時・ハマり原因特定時の区切りごとに、担当 `docs/tasks/<ID>-<slug>.md` の **`Current State` / `Decisions & Notes` / `Next Step` を具体的に更新してこまめにコミット**する。
    - これにより、いつ記憶が飛んでも次のターンで `bash scripts/status.sh` を 1 回叩くだけで直前の思考と次の 1 手が 100% 復元される。
 4. **コード側の衝突最小化ルール**:
    - 各モジュールは `src/<module>/mod.zig` 以下に自己完結させ、単体テストもモジュール内から走らせるように書く。
    - 共有ファイル（`build.zig` / `src/root.zig`）への変更は最小限の 1 エントリ追加に留め、アルファベット順を維持する。
+5. **gitflow に沿った PR**:
+   - セッションの `arena/<session>` ブランチはそのまま残し、PR を出すときに **`feature/<slug>` を 1 本だけ** 切って push する（`git switch -c feature/<slug>` はセッション branch からのみ）。
+   - PR の base は `develop`。`bash scripts/gitflow.sh --check-pr-base develop feature/<slug>` と CI の `gitflow-pr-base` が同じ表で検証する。詳細は [`docs/contributing/gitflow.md`](docs/contributing/gitflow.md)。
 
 ---
 
@@ -123,6 +126,7 @@ Arena サンドボックスでは **新しいチャット（ブランチ）ご�
 - 🏗️ **全体アーキテクチャ & 上流 `vendor/` 対応表**: [`docs/architecture/00-overview.md`](docs/architecture/00-overview.md)
 - 🌐 **公開ドキュメントサイト**: <https://umiturtle.github.io/Z-Ts/>（`./zigw build docs` で生成。仕組みは [`docs/architecture/documentation-site.md`](docs/architecture/documentation-site.md)）
 - 🗺️ **マイルストーン定義**: [`docs/roadmap/milestones.md`](docs/roadmap/milestones.md)
+- 🌿 **ブランチ運用（gitflow）**: [`docs/contributing/gitflow.md`](docs/contributing/gitflow.md)（`main` / `develop` / `feature` / `release` / `hotfix` と PR base）
 - 📝 **タスク・記憶チェックポイント雛形**: [`docs/tasks/TEMPLATE.md`](docs/tasks/TEMPLATE.md)
 - ⚡ **Arena 実行環境・キャッシュ最適化詳細**: [`docs/environment/arena-and-caching.md`](docs/environment/arena-and-caching.md)
 - 🔄 **GitHub Actions 運用・オフロード詳細**: [`docs/environment/github-actions.md`](docs/environment/github-actions.md)
@@ -136,4 +140,4 @@ Arena サンドボックスでは **新しいチャット（ブランチ）ご�
    - 設計上の矛盾、上流仕様の落とし穴、テスト不足、パフォーマンス悪化を見つけた場合は曖昧にせず明確に指摘・提案する。
 4. **コミット規約**:
    - 1 コミット = 1 つの明確でテスト通過済みの変更とし、Conventional Commits（`feat`, `fix`, `docs`, `test`, `perf`, `refactor`, `chore`, `ci`）に従う。
-   - **セッションの現在ブランチ（`arena/...`）以外に checkout / push しないこと。**
+   - **セッションの `arena/...` ブランチと、そこから切った `feature/<slug>` 以外に checkout / push しないこと。**（PR は `feature/<slug>` → `develop`）

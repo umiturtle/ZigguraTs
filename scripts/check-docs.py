@@ -70,6 +70,11 @@ cheap (regexes over checked-in text), so they run in CI on every push and locall
                       with a GET before PATCH, are `continue-on-error`, and mirror to the Step
                       Summary. A `context.repo` frozen by a mid-run repository rename turns
                       `checks.update` into HTTP 500; that diagnostic must never fail the build.
+19. gitflow intake   — every gitflow branch runs the same 3-OS CI, the naming/PR-base validator
+                      exists and is exercised in CI, the bilingual guide exists and is indexed,
+                      and the PR template states the PR bases. Arena agents branch one
+                      `feature/<slug>` from their session ref; the validator itself never creates
+                      a branch.
 
 Run: `python3 scripts/check-docs.py` (or `./zigw docs-check`).
 """
@@ -1352,6 +1357,49 @@ if doc is not None:
     for token in ("publish-check-run-summary.js", "full_name", "continue-on-error"):
         if token not in doc:
             errors.append(f"{R18_DOC}: missing {token!r} (rule 18)")
+
+# ---------------------------------------------------------------------------
+# 19. gitflow intake: CI triggers, naming/PR-base validator, bilingual guide, PR template
+# ---------------------------------------------------------------------------
+#
+# The owner creates the long-lived branches; an Arena agent branches exactly one `feature/<slug>`
+# from its session ref. This rule keeps the *intake* honest: every gitflow branch gets the same
+# 3-OS CI, the validator is exercised in CI, and both languages state the same PR bases.
+
+R19_BRANCHES = ("develop", '"feature/**"', '"release/**"', '"hotfix/**"', '"arena/**"')
+R19_CI = open(".github/workflows/ci.yml", encoding="utf-8").read() if os.path.isfile(".github/workflows/ci.yml") else ""
+for branch in R19_BRANCHES:
+    if branch not in R19_CI:
+        errors.append(f".github/workflows/ci.yml: missing push branch {branch} (rule 19)")
+for token in ("scripts/gitflow.sh --self-test", "scripts/gitflow.sh --check-pr-base"):
+    if token not in R19_CI:
+        errors.append(f".github/workflows/ci.yml: missing {token!r} (rule 19)")
+
+R19_SCRIPT = open("scripts/gitflow.sh", encoding="utf-8").read() if os.path.isfile("scripts/gitflow.sh") else ""
+if not R19_SCRIPT:
+    errors.append("scripts/gitflow.sh: missing (rule 19)")
+else:
+    for token in ("--self-test", "--check-pr-base", "feature/*", "release/*", "hotfix/*", "arena/*", "develop"):
+        if token not in R19_SCRIPT:
+            errors.append(f"scripts/gitflow.sh: missing {token!r} (rule 19)")
+    # An agent must never move another ref from inside the validator: the owner owns the model.
+    for forbidden in ("git checkout -b", "git switch -c", "git branch -m", "git push origin"):
+        if forbidden in R19_SCRIPT:
+            errors.append(f"scripts/gitflow.sh: must not create branches ({forbidden!r}) (rule 19)")
+
+for path in ("docs/contributing/gitflow.md", "docs/contributing/gitflow.en.md"):
+    text = r18_read(path)
+    if text is None:
+        continue
+    for token in ("develop", "feature/", "release/", "hotfix/", "arena/", "--base develop", "vX.Y.Z"):
+        if token not in text:
+            errors.append(f"{path}: missing {token!r} (rule 19)")
+
+pr_template = open(".github/PULL_REQUEST_TEMPLATE.md", encoding="utf-8").read() if os.path.isfile(".github/PULL_REQUEST_TEMPLATE.md") else ""
+if not pr_template:
+    errors.append(".github/PULL_REQUEST_TEMPLATE.md: missing (rule 19)")
+elif "develop" not in pr_template or "gitflow.sh --check" not in pr_template:
+    errors.append(".github/PULL_REQUEST_TEMPLATE.md: must name develop and the validator (rule 19)")
 
 if warnings:
     for w in warnings:

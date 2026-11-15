@@ -26,6 +26,10 @@ echo " ziggurats Agent Status & Parallel Coordination Radar"
 echo "=================================================================="
 echo "Current branch : ${CUR_BRANCH}"
 echo "HEAD commit    : $(git log -1 --oneline 2>/dev/null || echo 'none')"
+if [[ -x scripts/gitflow.sh ]]; then
+  PR_BASE_HINT="$(bash scripts/gitflow.sh 2>/dev/null | sed -n 's/^PR base: //p' || true)"
+  [[ -n "$PR_BASE_HINT" ]] && echo "PR base (gitflow): ${PR_BASE_HINT}"
+fi
 echo ""
 
 echo "--- [1] Working Tree & Recent Branch Commits ---"
@@ -91,8 +95,8 @@ done
 
 if command -v gh >/dev/null 2>&1; then
   echo "  Open PRs:"
-  gh pr list --state open --limit 15 --json number,title,headRefName,updatedAt \
-    --template '{{range .}}    #{{.number}} [{{.headRefName}}] {{.title}} ({{timeago .updatedAt}}){{"\n"}}{{end}}' 2>/dev/null || echo "    (none or unavailable)"
+  gh pr list --state open --limit 15 --json number,title,headRefName,baseRefName,updatedAt \
+    --template '{{range .}}    #{{.number}} [{{.headRefName}} → {{.baseRefName}}] {{.title}} ({{timeago .updatedAt}}){{"\n"}}{{end}}' 2>/dev/null || echo "    (none or unavailable)"
 fi
 echo ""
 

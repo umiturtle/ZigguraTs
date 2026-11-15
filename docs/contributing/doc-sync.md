@@ -16,10 +16,10 @@
 ## 確認したバージョン
 
 - **確認バージョン**: `ziggurats 0.1.0` / Zig `0.17.0`
-- **確認日**: `2026-10-21`
-- **基準コミット**: `c846f01`（確認開始時点の HEAD。実装の同一性は下のハッシュで判定）
+- **確認日**: `2026-11-15`
+- **基準コミット**: `60fb572`（確認開始時点の HEAD。実装の同一性は下のハッシュで判定）
 - **確認コマンド**: `python3 scripts/check-docs.py` · `python3 scripts/gen-framework-tutorials.py --check` · `./zigw docs-check` · `./zigw quick-test` · `./zigw test -Mroot=src/cli/mod.zig` · `./zigw fmt --check src/ build.zig build.zig.zon`
-- **実装ハッシュ**: `65108999801026540d9e18826b20d341fe0fc6b7290facfd77f9d1f91ed3e5f2`
+- **実装ハッシュ**: `c65663d6bb723f26dd60f82b0bd789b0a2d335e8148e6600c9d389139d64b219`
 
 実装として突き合わせたファイル: `build.zig`, `build.zig.zon`, `src/cli/args.zig`, `src/cli/main.zig`, `src/cli/template.zig`, `src/docsite/main.zig`, `src/docsite/learn_path.zig`, `src/docsite/i18n.zig`, `src/docsite/site.zig`, `src/docsite/frameworks.zig`, `src/docsite/frameworks.json`, `src/docsite/assets/site.js`, `src/docsite/assets/site.css`, `scripts/check-docs.py`, `scripts/gen-framework-tutorials.py`
 
@@ -28,9 +28,10 @@
 | 日本語 | English | 最終書き換え | 確認バージョン |
 |---|---|---|---|
 | `README.md` | `README.en.md` | 2026-10-21 | 0.1.0 |
-| `docs/INDEX.md` | `docs/INDEX.en.md` | 2026-10-21 | 0.1.0 |
+| `docs/INDEX.md` | `docs/INDEX.en.md` | 2026-11-15 | 0.1.0 |
 | `docs/contributing/README.md` | `docs/contributing/README.en.md` | 2026-10-21 | 0.1.0 |
 | `docs/contributing/doc-sync.md` | `docs/contributing/doc-sync.en.md` | 2026-10-21 | 0.1.0 |
+| `docs/contributing/gitflow.md` | `docs/contributing/gitflow.en.md` | 2026-11-15 | 0.1.0 |
 | `docs/contributing/repository-map.md` | `docs/contributing/repository-map.en.md` | 2026-10-21 | 0.1.0 |
 | `docs/contributing/troubleshooting.md` | `docs/contributing/troubleshooting.en.md` | 2026-10-21 | 0.1.0 |
 | `docs/contributing/writing-docs.md` | `docs/contributing/writing-docs.en.md` | 2026-10-21 | 0.1.0 |

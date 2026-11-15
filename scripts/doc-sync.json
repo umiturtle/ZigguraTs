@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "verified": {
-    "date": "2026-10-21",
-    "commit": "c846f01",
+    "date": "2026-11-15",
+    "commit": "60fb572",
     "zts_version": "0.1.0",
     "zig_version": "0.17.0",
     "checks": [
@@ -30,7 +30,7 @@
       "scripts/check-docs.py",
       "scripts/gen-framework-tutorials.py"
     ],
-    "implementation_sha256": "65108999801026540d9e18826b20d341fe0fc6b7290facfd77f9d1f91ed3e5f2"
+    "implementation_sha256": "c65663d6bb723f26dd60f82b0bd789b0a2d335e8148e6600c9d389139d64b219"
   },
   "pages": [
     {
@@ -43,9 +43,9 @@
     {
       "ja": "docs/INDEX.md",
       "en": "docs/INDEX.en.md",
-      "last_rewritten": "2026-10-21",
-      "ja_sha256": "48f5932c745a2b3364ba3396acfa75d9c44761d317b105898cf5c0c600a99cdd",
-      "en_sha256": "e60482f436ebed2271d6304b9d452a91e5393cba407b3f3da4e707e0a4975b88"
+      "last_rewritten": "2026-11-15",
+      "ja_sha256": "1119221902ea8e1d58cc8a0c36d760de85702539910836f32889a4ce67909fd0",
+      "en_sha256": "1d724bc08c345c50a121570b8230f434bf8065918e3789cdb1ec82b64c19e314"
     },
     {
       "ja": "docs/contributing/README.md",
@@ -58,8 +58,15 @@
       "ja": "docs/contributing/doc-sync.md",
       "en": "docs/contributing/doc-sync.en.md",
       "last_rewritten": "2026-10-21",
-      "ja_sha256": "13b1eb6869593a2b06a9faed4cb7d04894466e11f4858438919398d2ae311d04",
-      "en_sha256": "75e0dcb6efd363b7da47ccb3f315c248655204bdd65124ecf6bdd58d51db89be"
+      "ja_sha256": "35cb40b08e8a5bb10aab9fddaaaedea81c2cb780b4b14b427601e736537b076d",
+      "en_sha256": "b885832c11dafd0e2b938913208eda84422fd31f6bc4d27d0cbd4d74d749415c"
+    },
+    {
+      "ja": "docs/contributing/gitflow.md",
+      "en": "docs/contributing/gitflow.en.md",
+      "last_rewritten": "2026-11-15",
+      "ja_sha256": "bd47ceb9ef34a14b70d1504d2551ddf44dcd23b4027fed14cb5ee93c1db1152b",
+      "en_sha256": "dd0ecb835c7757adccdbc4e72db4bc07aa776fd7bae98e7a452b877603f63282"
     },
     {
       "ja": "docs/contributing/repository-map.md",

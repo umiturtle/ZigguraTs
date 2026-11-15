@@ -18,10 +18,10 @@ version was verified consistent with the implementation. The source of truth is
 ## Verified against
 
 - **Verified version**: `ziggurats 0.1.0` / Zig `0.17.0`
-- **Verified on**: `2026-10-21`
-- **Base commit**: `c846f01` (HEAD when verification began; the sha256 below identifies the implementation)
+- **Verified on**: `2026-11-15`
+- **Base commit**: `60fb572` (HEAD when verification began; the sha256 below identifies the implementation)
 - **Verified with**: `python3 scripts/check-docs.py` · `python3 scripts/gen-framework-tutorials.py --check` · `./zigw docs-check` · `./zigw quick-test` · `./zigw test -Mroot=src/cli/mod.zig` · `./zigw fmt --check src/ build.zig build.zig.zon`
-- **Implementation hash**: `65108999801026540d9e18826b20d341fe0fc6b7290facfd77f9d1f91ed3e5f2`
+- **Implementation hash**: `c65663d6bb723f26dd60f82b0bd789b0a2d335e8148e6600c9d389139d64b219`
 
 Implementation files compared: `build.zig`, `build.zig.zon`, `src/cli/args.zig`, `src/cli/main.zig`, `src/cli/template.zig`, `src/docsite/main.zig`, `src/docsite/learn_path.zig`, `src/docsite/i18n.zig`, `src/docsite/site.zig`, `src/docsite/frameworks.zig`, `src/docsite/frameworks.json`, `src/docsite/assets/site.js`, `src/docsite/assets/site.css`, `scripts/check-docs.py`, `scripts/gen-framework-tutorials.py`
 
@@ -30,9 +30,10 @@ Implementation files compared: `build.zig`, `build.zig.zon`, `src/cli/args.zig`,
 | Japanese | English | Last rewritten | Verified version |
 |---|---|---|---|
 | `README.md` | `README.en.md` | 2026-10-21 | 0.1.0 |
-| `docs/INDEX.md` | `docs/INDEX.en.md` | 2026-10-21 | 0.1.0 |
+| `docs/INDEX.md` | `docs/INDEX.en.md` | 2026-11-15 | 0.1.0 |
 | `docs/contributing/README.md` | `docs/contributing/README.en.md` | 2026-10-21 | 0.1.0 |
 | `docs/contributing/doc-sync.md` | `docs/contributing/doc-sync.en.md` | 2026-10-21 | 0.1.0 |
+| `docs/contributing/gitflow.md` | `docs/contributing/gitflow.en.md` | 2026-11-15 | 0.1.0 |
 | `docs/contributing/repository-map.md` | `docs/contributing/repository-map.en.md` | 2026-10-21 | 0.1.0 |
 | `docs/contributing/troubleshooting.md` | `docs/contributing/troubleshooting.en.md` | 2026-10-21 | 0.1.0 |
 | `docs/contributing/writing-docs.md` | `docs/contributing/writing-docs.en.md` | 2026-10-21 | 0.1.0 |
