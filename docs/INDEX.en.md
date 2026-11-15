@@ -152,6 +152,7 @@ All four are built on three OSes in CI, with their screenshots compared pixel by
 |---|---|
 | [Developing ziggurats](contributing/README.en.md) | Toolchain, `zig build` steps, change etiquette, CI |
 | [Branch model (gitflow)](contributing/gitflow.en.md) | `main` / `develop` / `feature` / `release` / `hotfix`, PR bases, cutting a release |
+| [Working with Jujutsu (jj, optional)](contributing/jujutsu.en.md) | Colocated setup, bookmarks vs git branches, and opening PRs |
 | [Repository map](contributing/repository-map.en.md) | Which file does what and how often it changes (the parallel-work unit) |
 | [Repository troubleshooting](contributing/troubleshooting.en.md) | Toolchain, cold builds, 0.17 API differences, Pages |
 | [Documentation sync ledger](contributing/doc-sync.en.md) | When each page was last rewritten and which version was verified |

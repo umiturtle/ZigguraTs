@@ -2,7 +2,7 @@
   "schema": 1,
   "verified": {
     "date": "2026-11-15",
-    "commit": "f584edc",
+    "commit": "52a73d6",
     "zts_version": "0.1.0",
     "zig_version": "0.17.0",
     "checks": [
@@ -44,8 +44,8 @@
       "ja": "docs/INDEX.md",
       "en": "docs/INDEX.en.md",
       "last_rewritten": "2026-11-15",
-      "ja_sha256": "1119221902ea8e1d58cc8a0c36d760de85702539910836f32889a4ce67909fd0",
-      "en_sha256": "1d724bc08c345c50a121570b8230f434bf8065918e3789cdb1ec82b64c19e314"
+      "ja_sha256": "37cb3361ac3aad68ddbf419022da0eaf628be02999000d5edbef7192d0a3c48c",
+      "en_sha256": "68b7c204ca63f13166a69a613b899027db04ef5da0f3d1769dd222ff213e8181"
     },
     {
       "ja": "docs/contributing/README.md",
@@ -58,15 +58,22 @@
       "ja": "docs/contributing/doc-sync.md",
       "en": "docs/contributing/doc-sync.en.md",
       "last_rewritten": "2026-10-21",
-      "ja_sha256": "1dade3656505680fe49ca4dd60f469be0e24106c8057697f35bf5df50eeae2ab",
-      "en_sha256": "84aba86eca801e3943aa7d848bf067ec2864861c40eb27a8894b8f229f6dd117"
+      "ja_sha256": "6c4d2a88ed702b5d1c4eb919366b2f8bda79de40e574061a2609cdbd7ace0585",
+      "en_sha256": "b7f4ef0e7c187a526d20e8791d05da630443534a6be223d64ab7082e13da9394"
     },
     {
       "ja": "docs/contributing/gitflow.md",
       "en": "docs/contributing/gitflow.en.md",
       "last_rewritten": "2026-11-15",
-      "ja_sha256": "b7ed439267109c67aa8220e28b3736ec6393f32dfec26bce5ea054353048032d",
-      "en_sha256": "ae375dfc9a858685f62a69925bfc8810fdd49f675c736f979bbc9524f4bed6e1"
+      "ja_sha256": "eaab5e38c13e96cb6be9c28335bb152abedfe050037c6b97bb7b5464924a561f",
+      "en_sha256": "7bb4f5b0c30865c4c660b777b9953a9ac93058ca01c685af63a28e4255ab7087"
+    },
+    {
+      "ja": "docs/contributing/jujutsu.md",
+      "en": "docs/contributing/jujutsu.en.md",
+      "last_rewritten": "2026-11-15",
+      "ja_sha256": "b90a0be67a4670d7401f6bd7b9308ffb9099de0324c2234659884c7376603fca",
+      "en_sha256": "9023d7e2c0173894d2fab723e13ba03b14703d634634b09616b160f28aed3bad"
     },
     {
       "ja": "docs/contributing/repository-map.md",

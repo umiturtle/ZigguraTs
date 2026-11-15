@@ -17,7 +17,7 @@
 
 - **確認バージョン**: `ziggurats 0.1.0` / Zig `0.17.0`
 - **確認日**: `2026-11-15`
-- **基準コミット**: `f584edc`（確認開始時点の HEAD。実装の同一性は下のハッシュで判定）
+- **基準コミット**: `52a73d6`（確認開始時点の HEAD。実装の同一性は下のハッシュで判定）
 - **確認コマンド**: `python3 scripts/check-docs.py` · `python3 scripts/gen-framework-tutorials.py --check` · `./zigw docs-check` · `./zigw quick-test` · `./zigw test -Mroot=src/cli/mod.zig` · `./zigw fmt --check src/ build.zig build.zig.zon`
 - **実装ハッシュ**: `c65663d6bb723f26dd60f82b0bd789b0a2d335e8148e6600c9d389139d64b219`
 
@@ -32,6 +32,7 @@
 | `docs/contributing/README.md` | `docs/contributing/README.en.md` | 2026-10-21 | 0.1.0 |
 | `docs/contributing/doc-sync.md` | `docs/contributing/doc-sync.en.md` | 2026-10-21 | 0.1.0 |
 | `docs/contributing/gitflow.md` | `docs/contributing/gitflow.en.md` | 2026-11-15 | 0.1.0 |
+| `docs/contributing/jujutsu.md` | `docs/contributing/jujutsu.en.md` | 2026-11-15 | 0.1.0 |
 | `docs/contributing/repository-map.md` | `docs/contributing/repository-map.en.md` | 2026-10-21 | 0.1.0 |
 | `docs/contributing/troubleshooting.md` | `docs/contributing/troubleshooting.en.md` | 2026-10-21 | 0.1.0 |
 | `docs/contributing/writing-docs.md` | `docs/contributing/writing-docs.en.md` | 2026-10-21 | 0.1.0 |

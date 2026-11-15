@@ -105,18 +105,30 @@ echo ""
 echo "--- [5] Local Container Toolchains & Cache Health ---"
 ZIG_ST="$(zig version 2>/dev/null || echo 'MISSING (auto-installed on ./zigw)')"
 CACHE_ST="COLD"
-[[ -d "${HOME}/.cache/zig/o" ]] && CACHE_ST="WARM ($(du -sh "${HOME}/.cache/zig" 2>/dev/null | awk '{print $1}'))"
+if [[ -d "${HOME}/.cache/zig/o" ]]; then
+  CACHE_ST="WARM ($(du -sh "${HOME}/.cache/zig" 2>/dev/null | awk '{print $1}'))"
+fi
 RUST_ST="$(rustc --version 2>/dev/null || echo 'MISSING (run: bash scripts/setup-toolchains.sh --rust)')"
 GTK_ST="MISSING (run: bash scripts/setup-toolchains.sh --sysroot)"
 if pkg-config --exists gtk+-3.0 webkit2gtk-4.1 2>/dev/null; then
   GTK_ST="READY (gtk $(pkg-config --modversion gtk+-3.0), webkit2gtk $(pkg-config --modversion webkit2gtk-4.1))"
 fi
 SUBMOD_ST="MISSING (run: bash scripts/setup-toolchains.sh --submodules)"
-[[ -f "vendor/tauri/Cargo.toml" && -f "vendor/wry/Cargo.toml" && -f "vendor/tao/Cargo.toml" ]] && SUBMOD_ST="READY (tauri, wry, tao)"
+if [[ -f "vendor/tauri/Cargo.toml" && -f "vendor/wry/Cargo.toml" && -f "vendor/tao/Cargo.toml" ]]; then
+  SUBMOD_ST="READY (tauri, wry, tao)"
+fi
+JJ_ST="MISSING (optional; see docs/contributing/jujutsu.md)"
+if command -v jj >/dev/null 2>&1; then
+  JJ_ST="READY ($(jj --version 2>/dev/null | awk '{print $2}'))"
+  if [[ -d .jj ]]; then
+    JJ_ST="${JJ_ST}, colocated"
+  fi
+fi
 
 echo "  zig          : ${ZIG_ST}"
 echo "  ~/.cache/zig : ${CACHE_ST}"
 echo "  rust         : ${RUST_ST}"
 echo "  linux-sysroot: ${GTK_ST}"
 echo "  vendor/      : ${SUBMOD_ST}"
+echo "  jujutsu      : ${JJ_ST}"
 echo "=================================================================="

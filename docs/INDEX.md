@@ -152,6 +152,7 @@ ziggurats には読者が 3 種類いて、使うコマンドもページも別�
 |---|---|
 | [ziggurats 自体を開発する](contributing/README.md) | ツールチェーン・`zig build` のステップ・変更の作法・CI |
 | [ブランチ運用（gitflow）](contributing/gitflow.md) | `main` / `develop` / `feature` / `release` / `hotfix` と PR の base・リリース手順 |
+| [Jujutsu（jj）で作業する（任意）](contributing/jujutsu.md) | colocated モードでの導入・ブックマークと git ブランチの対応・PR の出し方 |
 | [リポジトリの地図](contributing/repository-map.md) | どのファイルが何で、どのくらい触るか（並列開発の分割単位） |
 | [トラブルシューティング（リポジトリ開発）](contributing/troubleshooting.md) | ツールチェーン・コールドビルド・0.17 API 差分・Pages |
 | [ドキュメント同期台帳](contributing/doc-sync.md) | いつ最終書き換えか・どのバージョンまで実装と無矛盾を確認したか |

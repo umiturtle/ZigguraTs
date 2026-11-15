@@ -113,6 +113,7 @@ matrix. Pages and Release are restricted to `main` and tags.
 
 ## Related
 
+- [Working with Jujutsu (jj, optional)](jujutsu.en.md) — map git branches to bookmarks
 - [Repository map](repository-map.en.md)
 - [Documentation sync ledger](doc-sync.en.md)
 - [GitHub Actions operations](../environment/github-actions.md)

@@ -127,6 +127,7 @@ Arena サンドボックスでは **新しいチャット（ブランチ）ご�
 - 🌐 **公開ドキュメントサイト**: <https://umiturtle.github.io/Z-Ts/>（`./zigw build docs` で生成。仕組みは [`docs/architecture/documentation-site.md`](docs/architecture/documentation-site.md)）
 - 🗺️ **マイルストーン定義**: [`docs/roadmap/milestones.md`](docs/roadmap/milestones.md)
 - 🌿 **ブランチ運用（gitflow）**: [`docs/contributing/gitflow.md`](docs/contributing/gitflow.md)（`main` / `develop` / `feature` / `release` / `hotfix` と PR base）
+- 🧪 **Jujutsu（jj）任意運用**: [`docs/contributing/jujutsu.md`](docs/contributing/jujutsu.md)（git が正本。エージェントと CI は git 手順のまま）
 - 📝 **タスク・記憶チェックポイント雛形**: [`docs/tasks/TEMPLATE.md`](docs/tasks/TEMPLATE.md)
 - ⚡ **Arena 実行環境・キャッシュ最適化詳細**: [`docs/environment/arena-and-caching.md`](docs/environment/arena-and-caching.md)
 - 🔄 **GitHub Actions 運用・オフロード詳細**: [`docs/environment/github-actions.md`](docs/environment/github-actions.md)

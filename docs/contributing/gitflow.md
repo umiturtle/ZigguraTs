@@ -113,6 +113,7 @@ bash scripts/gitflow.sh --check-pr-base develop feature/window-state
 
 ## 関連
 
+- [Jujutsu（jj）で作業する（任意）](jujutsu.md) — git ブランチとブックマークを対応させる
 - [リポジトリの地図](repository-map.md)
 - [ドキュメント同期台帳](doc-sync.md)
 - [GitHub Actions の運用](../environment/github-actions.md)

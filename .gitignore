@@ -1,3 +1,6 @@
+# Jujutsu (colocated) metadata — optional local layer on top of git
+.jj/
+
 # Zig build artifacts
 .zig-cache/
 zig-out/
