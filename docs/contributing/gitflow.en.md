@@ -1,10 +1,10 @@
 # Branch model (gitflow)
 
 > **Audience**: anyone proposing a change to this repository or cutting a release.
-> **Prerequisites**: the repository owner creates `main` and `develop`.
+> **Initial branch pointers**: `main` starts at PR #26 (`9530b030`); `develop` starts at PR #27 (`e3cc3389`).
 
-This repository follows **gitflow**. The owner (a human) creates the branches; Arena agents running
-in parallel commit to exactly one `arena/*` ref each. Naming is validated by
+This repository follows **gitflow**. The owner (a human) maintains the long-lived branches; Arena
+agents running in parallel commit to exactly one `arena/*` ref each. Naming is validated by
 [`scripts/gitflow.sh`](../../scripts/gitflow.sh), and CI runs its `--self-test` table on every push
 (rule 21).
 
