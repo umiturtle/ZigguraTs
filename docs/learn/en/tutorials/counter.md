@@ -25,20 +25,6 @@ done in 15 minutes.
 
 <!-- framework-picker -->
 
-The nine branches of this tutorial. The Zig side is identical in all of them.
-
-| Library | This tutorial's branch |
-|---|---|
-| React | [Counter with React](counter-react.md) |
-| Solid | [Counter with Solid](counter-solid.md) |
-| Svelte | [Counter with Svelte](counter-svelte.md) |
-| Angular | [Counter with Angular](counter-angular.md) |
-| Next.js | [Counter with Next.js](counter-next.md) |
-| Nuxt | [Counter with Nuxt](counter-nuxt.md) |
-| Astro | [Counter with Astro](counter-astro.md) |
-| SvelteKit | [Counter with SvelteKit](counter-sveltekit.md) |
-| SolidStart | [Counter with SolidStart](counter-solidstart.md) |
-
 The [chooser hub](frameworks.md) lists every real example and live demo.
 
 ---
@@ -47,12 +33,12 @@ The [chooser hub](frameworks.md) lists every real example and live demo.
 
 | Item | Requirement |
 |---|---|
-| `zts` | one binary from the [releases](https://github.com/umiturtle/ZigguraTs/releases), see [Install](../guides/install.md) |
+| `zts` | one binary from the [releases](https://github.com/umiturtle/Z-Ts/releases), see [Install](../guides/install.md) |
 | Zig | 0.17 on `PATH` or in `ZTS_ZIG` (`zts` spawns it) |
 | OS | Linux (GTK3 + WebKit2GTK 4.1), macOS, Windows |
 
 ```bash
-zts version      # zts 0.1.1
+zts version      # zts 0.1.0
 zts doctor       # "all checks passed" means you are ready
 ```
 
@@ -215,7 +201,7 @@ zts build --frontend-only          # re-embed web/ only
 
 ```text
 $ zts doctor
-zts 0.1.1
+zts 0.1.0
   checkout     /home/you/Z-Ts
   z_ts         present
   zig          /tmp/zts-toolchains/zig/zig
@@ -246,5 +232,3 @@ That is one full lap: create, run, ship.
 | every command and flag | [`docs/reference/cli.md`](../../../reference/cli.md) |
 | a runnable sample (3 artefacts) | [`examples/counter/README.md`](../../../../examples/counter/README.md) |
 | the design behind all this | [Concepts](../concepts/index.md) |
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->

@@ -6,10 +6,10 @@ one toolchain.
 > The project's full name is **`ziggurats`** (lowercase). The CLI, package and module names stay
 > `zts` / `z_ts` / `zts_*`.
 
-[![CI](https://github.com/umiturtle/ZigguraTs/actions/workflows/ci.yml/badge.svg)](https://github.com/umiturtle/ZigguraTs/actions/workflows/ci.yml)
-[![Docs](https://github.com/umiturtle/ZigguraTs/actions/workflows/pages.yml/badge.svg)](https://umiturtle.github.io/ZigguraTs/)
+[![CI](https://github.com/umiturtle/Z-Ts/actions/workflows/ci.yml/badge.svg)](https://github.com/umiturtle/Z-Ts/actions/workflows/ci.yml)
+[![Docs](https://github.com/umiturtle/Z-Ts/actions/workflows/pages.yml/badge.svg)](https://umiturtle.github.io/Z-Ts/)
 
-📖 **Documentation site: <https://umiturtle.github.io/ZigguraTs/>**
+📖 **Documentation site: <https://umiturtle.github.io/Z-Ts/>**
 (search, table of contents and **working demos**; the Markdown in this repository is the source of
 truth). Japanese and English are both available on every reader page.
 
@@ -35,9 +35,9 @@ The distribution is **one `zts` binary** (about 300 KB, libc-free). All you need
 
 ```bash
 # 1) download the zts binary for your OS from GitHub Releases and put it on PATH
-curl -LO https://github.com/umiturtle/ZigguraTs/releases/download/v0.1.1/zts-0.1.1-linux-x86_64
-chmod +x zts-0.1.1-linux-x86_64
-mv zts-0.1.1-linux-x86_64 ~/.local/bin/zts
+curl -LO https://github.com/umiturtle/Z-Ts/releases/download/v0.1.0/zts-0.1.0-linux-x86_64
+chmod +x zts-0.1.0-linux-x86_64
+mv zts-0.1.0-linux-x86_64 ~/.local/bin/zts
 
 # 2) create a project
 zts init my-app && cd my-app
@@ -50,7 +50,7 @@ The `build.zig.zon` written by `zts init` points at **the published archive's `.
 no clone is needed (Zig fetches it on the first build, then caches it).
 
 ```zig
-.z_ts = .{ .url = "https://github.com/umiturtle/ZigguraTs/releases/download/v0.1.1/z_ts-0.1.1.tar.gz", .hash = "z_ts-0.1.1-…" },
+.z_ts = .{ .url = "https://github.com/umiturtle/Z-Ts/releases/download/v0.1.0/z_ts-0.1.0.tar.gz", .hash = "z_ts-0.1.0-…" },
 ```
 
 > To build `zts` from source: `git clone … && cd Z-Ts && zig build` (Zig 0.17 on `PATH` is enough).
@@ -117,9 +117,9 @@ step 1.
 | Build installers (`.deb` / `.dmg` / `.exe`) | [`learn/en/guides/package.md`](docs/learn/en/guides/package.md) |
 | Migrate from Tauri v2 | [`learn/en/guides/migrate-from-tauri.md`](docs/learn/en/guides/migrate-from-tauri.md) |
 | Something broke | [`learn/en/guides/troubleshooting.md`](docs/learn/en/guides/troubleshooting.md) |
-| **API reference** (generated from source) | <https://umiturtle.github.io/ZigguraTs/docs/api/index.html> |
+| **API reference** (generated from source) | <https://umiturtle.github.io/Z-Ts/docs/api/index.html> |
 | A word's meaning | [`docs/glossary.en.md`](docs/glossary.en.md) |
-| An error name | <https://umiturtle.github.io/ZigguraTs/docs/reference/errors.html> |
+| An error name | <https://umiturtle.github.io/Z-Ts/docs/reference/errors.html> |
 | Every `zts` option | [`docs/reference/cli.en.md`](docs/reference/cli.en.md) |
 
 **For people developing ziggurats itself** (the command is `zig build`)
@@ -175,5 +175,3 @@ The upstream [`tauri`](https://github.com/tauri-apps/tauri) / [`wry`](https://gi
 [`tao`](https://github.com/tauri-apps/tao) / [`muda`](https://github.com/tauri-apps/muda) projects
 keep their respective licences (MIT / Apache-2.0). Code under `vendor/` is **for reference only**
 and is not part of any build.
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->

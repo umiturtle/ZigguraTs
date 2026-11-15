@@ -70,28 +70,6 @@ cheap (regexes over checked-in text), so they run in CI on every push and locall
                       with a GET before PATCH, are `continue-on-error`, and mirror to the Step
                       Summary. A `context.repo` frozen by a mid-run repository rename turns
                       `checks.update` into HTTP 500; that diagnostic must never fail the build.
-19. Pages URL        — the published site's absolute URLs (`site_url`, sitemap, llms.txt,
-                      framework demos, generated tutorials, README/index links) must use the
-                      *current* repository name. The old `/Z-Ts/` Pages path 404s after a rename;
-                      `github.com` links and checkout paths stay as rule 14 prescribes.
-20. Version          — `build.zig.zon` is the single source of the release version. The CLI's
-                      `SemanticVersion`, release URLs, archive names and the sync ledger must all
-                      say the same `vX.Y.Z`. A stale `v0.1.0` in an install command ships a 404.
-21. Branch model     — CI must accept `main` / `develop` / `feature/**` / `release/**` /
-                      `hotfix/**` / `arena/**`, the naming validator must run in CI, and both
-                      language guides plus the PR template must name the same bases. Agents never
-                      create branches, so the validator must not either.
-22. Tutorial grid    — all three tutorials (counter / todo / ui) need a branch for all nine
-                      catalog libraries in both languages. Every branch must name the library's
-                      state primitive and cover the Zig linkage (seal, two states, `ipc://`,
-                      ONLINE/OFFLINE), and both hubs plus each original must link the whole grid.
-23. Page provenance  — every published Markdown page ends with one `zts-doc-meta` comment naming
-                      the source version, the verification day and its own last rewrite. Match the
-                      zon version and the sync ledger so a stale page can be detected mechanically.
-24. Follow-ups wired  — the seven implementation tasks (environment paths, OS monitor providers,
-                      store autosave/diagnostics, stale single-instance locks, RPC scaffold,
-                      one-place provider wiring, AppIndicator tray) must all be present. A doc that
-                      claims a fix without the code turning up in CI is exactly what this prevents.
 
 Run: `python3 scripts/check-docs.py` (or `./zigw docs-check`).
 """
@@ -104,8 +82,6 @@ import os
 import re
 import subprocess
 import sys
-
-import doc_meta
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(REPO_ROOT)
@@ -468,12 +444,7 @@ def index_targets(en):
     """Paths that the given language's index must mention, relative to `docs/`."""
     out = []
     for p in sorted(glob.glob("docs/learn/en/**/*.md" if en else "docs/learn/ja/**/*.md", recursive=True)):
-        rel = os.path.relpath(p, "docs").replace(os.sep, "/")
-        # The 3 x 9 framework branches are covered by tutorials/index.md + frameworks.md
-        # (rule 22 verifies the whole grid). Repeating 27 rows here would bury the index.
-        if re.match(r"^learn/(ja|en)/tutorials/(counter|todo|ui)-[a-z0-9]+\.md$", rel):
-            continue
-        out.append(rel)
+        out.append(os.path.relpath(p, "docs"))
     for p in ["docs/glossary.md"] + sorted(glob.glob("docs/reference/*.md")) + sorted(
         glob.glob("docs/contributing/*.md")
     ) + sorted(glob.glob("examples/*/README.md")):
@@ -677,9 +648,7 @@ def render_ledger(verified, pages, date):
         "python3 scripts/check-docs.py                             # 検査のみ（CI はこれ）\n"
         "```\n\n"
         "`--sync` は本文が変わったページの `last_rewritten` だけを更新し、変わっていないページの\n"
-        "日付は保持します。内部資料（ADR・設計メモ・タスク票）は日本語専用なので台帳の対象外です。\n"
-        "全ページの末尾には `<!-- zts-doc-meta: ... -->` を 1 行書き、対応バージョン・確認日・\n"
-        "最終書き換え日を記録します（規約 23）。メタ自身は本文に数えません。\n\n"
+        "日付は保持します。内部資料（ADR・設計メモ・タスク票）は日本語専用なので台帳の対象外です。\n\n"
         "## 関連\n\n"
         "- [ドキュメントの書き方](writing-docs.md) — 規約 13 と 2 言語の規約\n"
         "- [リポジトリの地図](repository-map.md) — ファイル配置\n"
@@ -712,9 +681,7 @@ def render_ledger(verified, pages, date):
         "```\n\n"
         "`--sync` updates `last_rewritten` only for pages whose content changed, and keeps the date of\n"
         "untouched pages. Internal documents (ADRs, design notes, task sheets) are Japanese-only and\n"
-        "are deliberately outside the ledger. Every published page also ends with one\n"
-        "`<!-- zts-doc-meta: ... -->` line recording its source version, verification day and last\n"
-        "rewrite (rule 23). The meta line is not counted as body text.\n\n"
+        "are deliberately outside the ledger.\n\n"
         "## Related\n\n"
         "- [Writing the docs](writing-docs.en.md) — rule 13 and the bilingual conventions\n"
         "- [Repository map](repository-map.en.md) — where files live\n"
@@ -722,18 +689,6 @@ def render_ledger(verified, pages, date):
     )
     open(LEDGER_JA, "w", encoding="utf-8").write(ja)
     open(LEDGER_EN, "w", encoding="utf-8").write(en)
-
-
-def git_last_commit_date(path):
-    """Last commit day for an internal note that has no ledger row."""
-    try:
-        out = subprocess.run(
-            ["git", "log", "-1", "--format=%cs", "--", path],
-            capture_output=True, text=True, timeout=5, check=True,
-        )
-        return out.stdout.strip() or None
-    except (OSError, subprocess.SubprocessError):
-        return None
 
 
 def run_sync(date):
@@ -761,41 +716,17 @@ def run_sync(date):
             print(f"error: {en}: missing English counterpart — cannot verify", file=sys.stderr)
             sys.exit(1)
 
-    # Decide `last_rewritten` from the BODY only. The meta line is regenerated on every sync, so
-    # hashing the whole file here would make every page look "just rewritten" every time.
     new_pages = []
     for ja, en in pairs:
-        jb, eb = doc_meta.body_hash(ja), doc_meta.body_hash(en)
+        jh, eh = sha256_file(ja), sha256_file(en)
         prev = old_pages.get((ja, en), {})
-        # Fall back to the old full-file hash for ledgers written before body hashes existed.
-        prev_jb = prev.get("ja_body_sha256", prev.get("ja_sha256"))
-        prev_eb = prev.get("en_body_sha256", prev.get("en_sha256"))
-        changed = prev_jb != jb or prev_eb != eb
+        changed = prev.get("ja_sha256") != jh or prev.get("en_sha256") != eh
         last = date if changed or not prev.get("last_rewritten") else prev["last_rewritten"]
-        new_pages.append({
-            "ja": ja, "en": en, "last_rewritten": last,
-            "ja_body_sha256": jb, "en_body_sha256": eb,
-        })
+        new_pages.append({"ja": ja, "en": en, "last_rewritten": last})
 
     # The ledger views are themselves pages in the ledger. Render them first; their content does
     # not depend on the hashes, so no fixed-point iteration is needed.
     render_ledger(verified, new_pages, date)
-
-    # Put one provenance comment at the end of every published page. Reader pages take the ledger
-    # date; internal notes (ADRs, task sheets, architecture notes) use their last commit day.
-    page_dates = {}
-    for page in new_pages:
-        page_dates[page["ja"]] = page["last_rewritten"]
-        page_dates[page["en"]] = page["last_rewritten"]
-    site_files = doc_meta.site_md_files()
-    for path in site_files:
-        last = page_dates.get(path) or git_last_commit_date(path) or date
-        text = open(path, encoding="utf-8").read()
-        open(path, "w", encoding="utf-8").write(
-            doc_meta.with_meta(text, source_version=zts, verified=date, last_rewritten=last)
-        )
-
-    # The ledger's *_sha256 covers the FULL file, meta included (rule 13 stays unchanged).
     for page in new_pages:
         page["ja_sha256"] = sha256_file(page["ja"])
         page["en_sha256"] = sha256_file(page["en"])
@@ -808,8 +739,7 @@ def run_sync(date):
         handle.write("\n")
     print(
         f"Sync ledger updated: {len(new_pages)} bilingual pairs, "
-        f"ziggurats {zts} / Zig {zig}, verified {date} at {verified['commit']}; "
-        f"{len(site_files)} pages carry zts-doc-meta."
+        f"ziggurats {zts} / Zig {zig}, verified {date} at {verified['commit']}."
     )
 
 
@@ -1422,309 +1352,6 @@ if doc is not None:
     for token in ("publish-check-run-summary.js", "full_name", "continue-on-error"):
         if token not in doc:
             errors.append(f"{R18_DOC}: missing {token!r} (rule 18)")
-
-# ---------------------------------------------------------------------------
-# 19. Published Pages URLs follow the current repository name
-# ---------------------------------------------------------------------------
-#
-# A repository rename changes the GitHub Pages sub-path but not `github.com` URLs (those redirect).
-# Rule 14 deliberately keeps the legacy name inside repository URLs and checkout paths; rule 19 is
-# the narrower guard for the *published site*: `site_url`, sitemap.xml, llms.txt, framework demos,
-# the generated tutorials and every reader-facing link must use the current `/ZigguraTs/` base.
-# ADRs and task sheets are historical records and are intentionally excluded from the scan.
-
-R19_BASE = "https://umiturtle.github.io/ZigguraTs/"
-R19_OLD = "https://umiturtle.github.io/Z-Ts/"
-R19_SOURCES = (
-    "src/docsite/main.zig",
-    "src/docsite/frameworks.zig",
-    "scripts/gen-framework-tutorials.py",
-)
-R19_SCAN = (
-    [
-        "README.md", "README.en.md", "AGENTS.md",
-        "docs/INDEX.md", "docs/INDEX.en.md",
-        "docs/architecture/documentation-site.md",
-        ".github/workflows/pages.yml",
-        "src/docsite/demos.zig",
-    ]
-    + sorted(glob.glob("docs/learn/**/*.md", recursive=True))
-    + sorted(glob.glob("docs/reference/**/*.md", recursive=True))
-    + sorted(glob.glob("docs/contributing/**/*.md", recursive=True))
-    + sorted(glob.glob("docs/architecture/**/*.md", recursive=True))
-    + sorted(glob.glob("examples/*/README*.md", recursive=True))
-    + sorted(glob.glob("src/docsite/**/*.zig", recursive=True))
-    + ["scripts/gen-framework-tutorials.py"]
-)
-
-for path in R19_SOURCES:
-    if not os.path.isfile(path):
-        errors.append(f"{path}: missing (rule 19)")
-        continue
-    text = open(path, encoding="utf-8").read()
-    if R19_OLD in text:
-        errors.append(f"{path}: stale Pages base {R19_OLD!r} (rule 19)")
-    if R19_BASE not in text:
-        errors.append(f"{path}: missing current Pages base {R19_BASE!r} (rule 19)")
-
-for path in sorted(set(R19_SCAN)):
-    if not os.path.isfile(path):
-        continue
-    text = open(path, encoding="utf-8").read()
-    if R19_OLD in text:
-        errors.append(f"{path}: stale published Pages URL {R19_OLD!r} (rule 19)")
-
-# ---------------------------------------------------------------------------
-# 20. One release version, everywhere it is published
-# ---------------------------------------------------------------------------
-#
-# `build.zig.zon` is the source of truth; `release.yml` reads it with `sed` and the sync ledger
-# mirrors it. The remaining copies are the CLI's own `SemanticVersion` and the URLs a reader is
-# told to fetch. A stale `v0.1.0` in an install command is a 404 that no link checker catches
-# because GitHub URLs are external and therefore skipped.
-#
-# The `0.1.0` in a *scaffolded project's* `build.zig.zon` (src/cli/template.zig, project.zig,
-# `my_app_0.1.0_amd64.deb` in the CLI reference) is a different version and is deliberately not
-# scanned: it is the app author's first release, not ours.
-
-R20_SURFACES = (
-    "README.md", "README.en.md",
-    "docs/learn/ja/guides/install.md", "docs/learn/en/guides/install.md",
-    "docs/reference/cli.md", "docs/reference/cli.en.md",
-    "src/cli/template.zig",
-)
-R20_STALE = ("v0.1.0", "zts-0.1.0", "z_ts-0.1.0", "zts 0.1.0")
-
-def r20_read(path):
-    if not os.path.isfile(path):
-        errors.append(f"{path}: missing (rule 20)")
-        return None
-    return open(path, encoding="utf-8").read()
-
-
-version = zon_versions()[0]
-for path in R20_SURFACES:
-    text = r20_read(path)
-    if text is None:
-        continue
-    if f"z_ts-{version}" not in text:
-        errors.append(f"{path}: missing z_ts-{version} archive name (rule 20)")
-    for stale in R20_STALE:
-        if stale in text:
-            errors.append(f"{path}: stale release version {stale!r} (rule 20)")
-
-for path in ("README.md", "README.en.md", "docs/learn/ja/guides/install.md",
-             "docs/learn/en/guides/install.md", "docs/reference/cli.md",
-             "docs/reference/cli.en.md", "src/cli/template.zig"):
-    text = open(path, encoding="utf-8").read() if os.path.isfile(path) else ""
-    if f"v{version}" not in text:
-        errors.append(f"{path}: missing v{version} release tag (rule 20)")
-
-cli_args = open("src/cli/args.zig", encoding="utf-8").read() if os.path.isfile("src/cli/args.zig") else ""
-m = re.search(
-    r"pub const version = std\.SemanticVersion\{\s*\.major = (\d+),\s*\.minor = (\d+),\s*\.patch = (\d+)\s*\}",
-    cli_args,
-)
-if not m:
-    errors.append("src/cli/args.zig: cannot parse the CLI SemanticVersion (rule 20)")
-else:
-    cli_version = f"{m.group(1)}.{m.group(2)}.{m.group(3)}"
-    if cli_version != version:
-        errors.append(
-            f"src/cli/args.zig: CLI version {cli_version} != build.zig.zon {version} (rule 20)"
-        )
-
-# Reader-facing pages must not teach an old release or the pre-rename repository URL. Task
-# sheets and ADRs are historical records and are exempt; checkout path examples are rule 14's.
-R20_READER = ["README.md", "README.en.md"] + sorted(
-    p for p in glob.glob("docs/**/*.md", recursive=True)
-    if not p.startswith(("docs/tasks/", "docs/decisions/"))
-)
-for path in R20_READER:
-    text = open(path, encoding="utf-8").read()
-    if "github.com/umiturtle/Z-Ts" in text:
-        errors.append(f"{path}: pre-rename repository URL in reader docs (rule 20)")
-    for stale in ("v0.1.0", "zts-0.1.0-", "zts 0.1.0"):
-        if stale in text:
-            errors.append(f"{path}: stale release reference {stale!r} (rule 20)")
-
-release = open(".github/workflows/release.yml", encoding="utf-8").read() if os.path.isfile(".github/workflows/release.yml") else ""
-if "build.zig.zon" not in release or ".version" not in release:
-    errors.append(".github/workflows/release.yml: must read the version from build.zig.zon (rule 20)")
-
-# CI builds its smoke archive from the same single source of truth; a hardcoded `z_ts-0.1.1`
-# there would rot on the next release.
-ci = open(".github/workflows/ci.yml", encoding="utf-8").read() if os.path.isfile(".github/workflows/ci.yml") else ""
-for stale in R20_STALE:
-    if stale in ci:
-        errors.append(f".github/workflows/ci.yml: stale release version {stale!r} (rule 20)")
-if "build.zig.zon" not in ci or "z_ts-$version" not in ci:
-    errors.append(".github/workflows/ci.yml: the smoke archive must derive its name from build.zig.zon (rule 20)")
-if "verify-library-consumer.sh" not in ci:
-    errors.append(".github/workflows/ci.yml: missing library-consumer gate (rule 20)")
-
-# ---------------------------------------------------------------------------
-# 21. gitflow intake: CI triggers, naming validator, bilingual guide, PR template
-# ---------------------------------------------------------------------------
-#
-# The repository owner creates the branches; Arena agents are pinned to one `arena/*` ref per
-# session. This rule keeps the *intake* honest: every gitflow branch gets the same 3-OS CI, the
-# validator is exercised in CI, and both languages tell the reader the same PR bases.
-
-R21_BRANCHES = ("develop", '"feature/**"', '"release/**"', '"hotfix/**"', '"arena/**"')
-R21_CI = open(".github/workflows/ci.yml", encoding="utf-8").read() if os.path.isfile(".github/workflows/ci.yml") else ""
-for branch in R21_BRANCHES:
-    if branch not in R21_CI:
-        errors.append(f".github/workflows/ci.yml: missing push branch {branch} (rule 21)")
-if "scripts/gitflow.sh --self-test" not in R21_CI:
-    errors.append(".github/workflows/ci.yml: gitflow naming validator is not run in CI (rule 21)")
-
-R21_SCRIPT = open("scripts/gitflow.sh", encoding="utf-8").read() if os.path.isfile("scripts/gitflow.sh") else ""
-if not R21_SCRIPT:
-    errors.append("scripts/gitflow.sh: missing (rule 21)")
-else:
-    for token in ("--self-test", "feature/*", "release/*", "hotfix/*", "arena/*", "develop"):
-        if token not in R21_SCRIPT:
-            errors.append(f"scripts/gitflow.sh: missing {token!r} (rule 21)")
-    # An agent must never create/switch/push a branch: the owner owns the branch model.
-    for forbidden in ("git checkout -b", "git switch -c", "git branch -m", "git push origin"):
-        if forbidden in R21_SCRIPT:
-            errors.append(f"scripts/gitflow.sh: must not create branches ({forbidden!r}) (rule 21)")
-
-for path in ("docs/contributing/gitflow.md", "docs/contributing/gitflow.en.md"):
-    text = r20_read(path)
-    if text is None:
-        continue
-    for token in ("develop", "feature/", "release/", "hotfix/", "arena/", "--base develop", f"v{version}"):
-        if token not in text:
-            errors.append(f"{path}: missing {token!r} (rule 21)")
-
-pr_template = open(".github/PULL_REQUEST_TEMPLATE.md", encoding="utf-8").read() if os.path.isfile(".github/PULL_REQUEST_TEMPLATE.md") else ""
-if not pr_template:
-    errors.append(".github/PULL_REQUEST_TEMPLATE.md: missing (rule 21)")
-elif "develop" not in pr_template or "gitflow.sh --check" not in pr_template:
-    errors.append(".github/PULL_REQUEST_TEMPLATE.md: must name develop and the validator (rule 21)")
-
-# ---------------------------------------------------------------------------
-# 22. Three tutorials x nine libraries: full grid, real Zig linkage, hub coverage
-# ---------------------------------------------------------------------------
-#
-# `scripts/gen-framework-tutorials.py` writes 54 branch pages from one profile table. Rule 15
-# still checks the verbatim example excerpt on the counter branches; this rule checks the rest:
-# no library is left behind, every branch teaches the state primitive AND the Zig connection, and
-# a reader can reach all 27 branches from the chapter hub, the chooser hub and each original.
-
-R22_KINDS = ("counter", "todo", "ui")
-R22_TOKENS = ("zig_inc", "seal", "ZIG OFFLINE", "ipc://", "invoke", "window.__ZTS_ZIG__")
-R22_CATALOG = json.loads(open("src/docsite/frameworks.json", encoding="utf-8").read())
-
-# The profile table must cover exactly the catalog: a new library without teaching text would
-# otherwise produce a KeyError only when someone regenerates, not when the doc check runs.
-profiles_src = open("scripts/framework_tutorial_profiles.py", encoding="utf-8").read()
-for fw in R22_CATALOG:
-    if f'"{fw["id"]}": {{' not in profiles_src:
-        errors.append(f"scripts/framework_tutorial_profiles.py: no profile for {fw['id']!r} (rule 22)")
-
-for lang in ("ja", "en"):
-    hub_path = f"docs/learn/{lang}/tutorials/index.md"
-    chooser_path = f"docs/learn/{lang}/tutorials/frameworks.md"
-    hub = open(hub_path, encoding="utf-8").read() if os.path.isfile(hub_path) else ""
-    chooser = open(chooser_path, encoding="utf-8").read() if os.path.isfile(chooser_path) else ""
-    if not hub:
-        errors.append(f"{hub_path}: missing (rule 22)")
-    if not chooser:
-        errors.append(f"{chooser_path}: missing (rule 22)")
-
-    for kind in R22_KINDS:
-        original_path = f"docs/learn/{lang}/tutorials/{kind}.md"
-        original = open(original_path, encoding="utf-8").read() if os.path.isfile(original_path) else ""
-        if not original:
-            errors.append(f"{original_path}: missing (rule 22)")
-        for fw in R22_CATALOG:
-            fid = fw["id"]
-            link = f"{kind}-{fid}.md"
-            page = f"docs/learn/{lang}/tutorials/{link}"
-            if not os.path.isfile(page):
-                errors.append(f"{page}: missing branch page (rule 22)")
-                continue
-            text = open(page, encoding="utf-8").read()
-            for token in R22_TOKENS:
-                if token not in text:
-                    errors.append(f"{page}: missing Zig-linkage token {token!r} (rule 22)")
-            state = fw[f"state_{lang}"]
-            if state not in text:
-                errors.append(f"{page}: missing state primitive {state!r} (rule 22)")
-            for name, body in (("index.md", hub), ("frameworks.md", chooser), (f"{kind}.md", original)):
-                if link not in body:
-                    errors.append(f"docs/learn/{lang}/tutorials/{name}: missing {link} (rule 22)")
-
-# ---------------------------------------------------------------------------
-# 23. Every published page states which source it describes and when it was rewritten
-# ---------------------------------------------------------------------------
-#
-# `scripts/doc_meta.py` owns the one-line comment; `--sync` writes it. This rule is what makes the
-# note mechanically useful: a page that claims the wrong version, an outdated verification day, a
-# duplicated meta or a reader page whose date drifted from the ledger all turn CI red.
-
-R23_SITE = doc_meta.site_md_files()
-R23_DATES = {}
-for (ja, en), entry in entries.items():
-    R23_DATES[ja] = entry.get("last_rewritten")
-    R23_DATES[en] = entry.get("last_rewritten")
-
-for path in R23_SITE:
-    text = open(path, encoding="utf-8").read()
-    # Only the TRAILING comment counts. A doc may legitimately quote the format when explaining
-    # the mechanism (this task sheet does), so do not count occurrences in the body.
-    body, fields = doc_meta.split_meta(text)
-    if fields is None:
-        errors.append(f"{path}: missing trailing zts-doc-meta comment (rule 23)")
-        continue
-    if fields.get("source-version") != zts:
-        errors.append(f"{path}: source-version {fields.get('source-version')!r} != {zts} (rule 23)")
-    if fields.get("verified") != date:
-        errors.append(f"{path}: verified {fields.get('verified')!r} != {date} (rule 23)")
-    last = fields.get("last-rewritten", "")
-    if not ISO_DATE.fullmatch(last):
-        errors.append(f"{path}: last-rewritten '{last}' is not an ISO date (rule 23)")
-    elif last > date and path in R23_DATES:
-        # Internal notes take their real git commit day, which may postdate the last verification;
-        # only ledger-backed pages must not claim a rewrite after the verification day.
-        errors.append(f"{path}: last-rewritten {last} is after verified {date} (rule 23)")
-    if path in R23_DATES and R23_DATES[path] and last != R23_DATES[path]:
-        errors.append(
-            f"{path}: last-rewritten {last} != ledger {R23_DATES[path]} (rule 23)"
-        )
-
-# ---------------------------------------------------------------------------
-# 24. All seven follow-up implementations exist (doc/code drift guard)
-# ---------------------------------------------------------------------------
-R24_TOKENS = {
-    "src/tauri/path.zig": ("fromEnvironment", "auto_detect", "owned_strings"),
-    "src/tauri/providers.zig": ("RuntimeProviders", "detectPath", "applyToPluginOptions"),
-    "src/tauri/plugins.zig": ("autosave", "RestoreDiagnostics", "lock_magic", "reclaimStaleLock"),
-    "src/tauri/mod.zig": ("provider_bundle", "self.paths.deinit"),
-    "src/tauri/native.zig": ("currentPid", "processAlive"),
-    "src/tauri/native_gtk.zig": ("app_indicator_new", "APP_INDICATOR_STATUS_ACTIVE"),
-    "src/tauri/tray/native_gtk.zig": ("createIndicator", "indicatorFor"),
-    "src/webview/mod.zig": ("pub fn screens", "pub fn cursorPosition"),
-    "src/webview/linux.zig": ("pub fn screens",),
-    "src/webview/macos.zig": ("pub fn screens",),
-    "src/webview/windows.zig": ("pub fn screens",),
-    "src/webview/mock.zig": ("pub fn screens",),
-    "src/app_runtime.zig": ("providers: tauri.RuntimeProviders", "monitorList", "detectPath"),
-    "src/cli/template.zig": ("rpc.Schema", "ZIG OFFLINE"),
-    "src/cli/main.zig": ("browser preview only",),
-    "build.zig": ("ayatana-appindicator3-0.1",),
-}
-for path, tokens in R24_TOKENS.items():
-    if not os.path.isfile(path):
-        errors.append(f"{path}: missing (rule 24)")
-        continue
-    text = open(path, encoding="utf-8").read()
-    for token in tokens:
-        if token not in text:
-            errors.append(f"{path}: missing {token!r} (rule 24)")
 
 if warnings:
     for w in warnings:

@@ -76,5 +76,3 @@
    var resp = handler.dispatch(response_gpa, &ctx, command_name, request_body_bytes);
    defer resp.deinit(); // または `host.respond(request_id, resp)` へ所有権ムーブ
    ```
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-11-14 -->

@@ -89,7 +89,6 @@ pub fn Instance(comptime Spec: type) type {
                 io,
                 Spec.app_config,
                 Spec.path_config,
-                .{},
             );
             errdefer plugins.destroy();
 

@@ -33,6 +33,6 @@
 
 ## 3. Decisions and Notes
 
-- The proposed PR includes both the eight commits currently ahead of `origin/main` and the current working-tree changes, as explicitly approved by the user.
-- The working-tree diff changes the package version and published URLs from `0.1.1` / `ZigguraTs` to `0.1.0` / `Z-Ts`; verify this is intentional before publishing.
+- The first PR carries the eight existing commits; this follow-up PR carries the separate working-tree diff and is stacked on the first.
+- The working-tree diff changes the package version and published repository URLs; verify the new version and slug are intentional before publishing.
 - The diff removes store autosave / restore diagnostics and native monitor/cursor provider wiring; confirm tests and docs reflect the resulting behavior.

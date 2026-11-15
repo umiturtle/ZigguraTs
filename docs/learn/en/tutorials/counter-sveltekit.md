@@ -6,7 +6,7 @@
 
 This is the **SvelteKit 3.1** branch of [Build a counter](counter.md). The Zig side is
 **identical, character for character**; only `web/` changes, and it uses the real example from
-[`examples/frameworks/sveltekit/`](https://github.com/umiturtle/ZigguraTs/tree/main/examples/frameworks/sveltekit). [Pick another library](frameworks.md) at any time.
+[`examples/frameworks/sveltekit/`](https://github.com/umiturtle/Z-Ts/tree/main/examples/frameworks/sveltekit). [Pick another library](frameworks.md) at any time.
 
 <!-- framework-picker -->
 
@@ -61,7 +61,7 @@ ls build/index.html
 
 > [!NOTE]
 > All nine examples render the **same DOM, CSS and copy**; only the framework name and version
-> differ. Compare the [live demo](https://umiturtle.github.io/ZigguraTs/examples/frameworks/sveltekit/index.html) with another one to see that the app is the same. See
+> differ. Compare the [live demo](https://umiturtle.github.io/Z-Ts/examples/frameworks/sveltekit/index.html) with another one to see that the app is the same. See
 > [`examples/frameworks/README.md`](../../../../examples/frameworks/README.en.md) for the 3-OS
 > screenshot comparison.
 
@@ -97,11 +97,7 @@ example). Pre-rendered with adapter-static; no `svelte.config.js`, the adapter g
     <ul class="features">
 ```
 
-State lives in `let count = 0`.
-
-Svelte 5's `let count = 0` / `$state(0)` updates the DOM directly on assignment. adapter-static bakes `0` into the HTML, so the client's first `invoke` establishes the real state.
-
-The counter deliberately uses **local state only** so the pixel
+State lives in `let count = 0`. The counter deliberately uses **local state only** so the pixel
 comparison across three OSes has no backend dependency. The `.zigbar` panel below it is the
 opposite: it **cannot be filled in unless Zig is running**
 ([appendix](#appendix-prove-zig-is-running-from-the-screen)). The next chapter connects ziggurats.
@@ -141,30 +137,6 @@ import { invoke } from "@tauri-apps/api/core";
 async function inc() { count = await invoke("increment"); }
 ```
 
-The SvelteKit state and the counter owned by Zig are **two different states**
-([appendix](#appendix-prove-zig-is-running-from-the-screen)). Assign `count = r.count` once after `await`. Because the prerendered value is briefly visible, only clear `ZIG OFFLINE` after the seal arrives.
-
-To feed the gallery's `zig_inc` into that same state, write:
-
-```svelte
-import { invoke } from "@tauri-apps/api/core";
-import { onMount } from "svelte";
-
-let zigCount = $state(0);
-let seal = $state("—");
-
-onMount(() => {
-  const zig = window.__ZTS_ZIG__;   // プリレンダーでは触らない
-  if (zig && typeof zig.mount === "function") zig.mount();
-});
-
-async function zigInc() {
-  const r = await invoke<{ ok: boolean; count: number; seal: string }>("zig_inc");
-  zigCount = r.count;
-  seal = r.seal;
-}
-```
-
 That closes the loop: button → `invoke("increment")` → Zig function → return value → screen.
 `invoke` does not reach anything in the browser served by `zts dev`, so always confirm with the
 executable produced by `zts build`.
@@ -198,11 +170,6 @@ JavaScript alone cannot manufacture the string. `+` / `-` change **the counter o
 the framework's local state, and every press produces a new seal. That single line is the answer to
 "is Zig actually alive back there?".
 
-Guard with `onMount` or `browser`: module scope in `+page.svelte` is evaluated on the server during prerender. No `svelte.config.js` is needed — the adapter goes to Vite.
-
-> [!WARNING]
-> `Reading `window.__ZTS_ZIG__` during SSR throws `ReferenceError`. Keep the `browser` guard.`
-
 The real wiring lives in
 [`examples/gallery/src/web/zig-bridge.js`](../../../../examples/gallery/src/web/zig-bridge.js) and
 [`examples/gallery/src/main.zig`](../../../../examples/gallery/src/main.zig). The gallery injects
@@ -219,11 +186,7 @@ own app, add those three commands to `rpc.Schema` and inject the same bridge. Ch
 | the plain-JS original | [Build a counter](counter.md) |
 | more state, returning failures | [Build a todo list](todo.md) |
 | loading / empty / error views | [Build the screen](ui.md) |
-| the Todo branch for SvelteKit | [Todo with SvelteKit](todo-sveltekit.md) |
-| the screen branch for SvelteKit | [Screen with SvelteKit](ui-sveltekit.md) |
-| the real SvelteKit source | [`examples/frameworks/sveltekit/`](https://github.com/umiturtle/ZigguraTs/tree/main/examples/frameworks/sveltekit) |
-| the live SvelteKit demo | [Open in a browser](https://umiturtle.github.io/ZigguraTs/examples/frameworks/sveltekit/index.html) |
+| the real SvelteKit source | [`examples/frameworks/sveltekit/`](https://github.com/umiturtle/Z-Ts/tree/main/examples/frameworks/sveltekit) |
+| the live SvelteKit demo | [Open in a browser](https://umiturtle.github.io/Z-Ts/examples/frameworks/sveltekit/index.html) |
 | all nine examples compared | [`examples/frameworks/README.en.md`](../../../../examples/frameworks/README.en.md) |
 | arguments, errors, generated types | [Guide: commands](../guides/rpc.md) |
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->

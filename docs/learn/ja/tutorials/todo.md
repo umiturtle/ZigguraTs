@@ -282,20 +282,6 @@ Zig 側（`State`・3 つのコマンド・`error{}`・テスト）は**どの�
 
 <!-- framework-picker -->
 
-このチュートリアルの 9 分岐です。Zig 側はどれも共通です。
-
-| ライブラリ | このチュートリアルの分岐 |
-|---|---|
-| React | [React でTodo](todo-react.md) |
-| Solid | [Solid でTodo](todo-solid.md) |
-| Svelte | [Svelte でTodo](todo-svelte.md) |
-| Angular | [Angular でTodo](todo-angular.md) |
-| Next.js | [Next.js でTodo](todo-next.md) |
-| Nuxt | [Nuxt でTodo](todo-nuxt.md) |
-| Astro | [Astro でTodo](todo-astro.md) |
-| SvelteKit | [SvelteKit でTodo](todo-sveltekit.md) |
-| SolidStart | [SolidStart でTodo](todo-solidstart.md) |
-
 [選択ハブ](frameworks.md) に実物の example 一覧があります。
 
 ## ここから先
@@ -307,5 +293,3 @@ Zig 側（`State`・3 つのコマンド・`error{}`・テスト）は**どの�
 | 一覧をファイルに保存する | [ガイド: プラグイン](../guides/plugins.md)（`plugin:fs`） |
 | 画面の作り込み（状態・CSS・CSP） | [チュートリアル: 画面を作る](ui.md) |
 | うまく動かないとき | [トラブルシューティング](../guides/troubleshooting.md) |
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->

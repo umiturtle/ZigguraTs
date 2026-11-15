@@ -121,7 +121,7 @@ Arena サンドボックスでは **新しいチャット（ブランチ）ご�
 - 📖 **Tauri v2 使い方リファレンス**: [`docs/reference/tauri-usage.md`](docs/reference/tauri-usage.md)
 - 🔬 **Tauri v2 内部実装完全解剖**: [`docs/reference/tauri-internals.md`](docs/reference/tauri-internals.md)
 - 🏗️ **全体アーキテクチャ & 上流 `vendor/` 対応表**: [`docs/architecture/00-overview.md`](docs/architecture/00-overview.md)
-- 🌐 **公開ドキュメントサイト**: <https://umiturtle.github.io/ZigguraTs/>（`./zigw build docs` で生成。仕組みは [`docs/architecture/documentation-site.md`](docs/architecture/documentation-site.md)）
+- 🌐 **公開ドキュメントサイト**: <https://umiturtle.github.io/Z-Ts/>（`./zigw build docs` で生成。仕組みは [`docs/architecture/documentation-site.md`](docs/architecture/documentation-site.md)）
 - 🗺️ **マイルストーン定義**: [`docs/roadmap/milestones.md`](docs/roadmap/milestones.md)
 - 📝 **タスク・記憶チェックポイント雛形**: [`docs/tasks/TEMPLATE.md`](docs/tasks/TEMPLATE.md)
 - ⚡ **Arena 実行環境・キャッシュ最適化詳細**: [`docs/environment/arena-and-caching.md`](docs/environment/arena-and-caching.md)
@@ -137,5 +137,3 @@ Arena サンドボックスでは **新しいチャット（ブランチ）ご�
 4. **コミット規約**:
    - 1 コミット = 1 つの明確でテスト通過済みの変更とし、Conventional Commits（`feat`, `fix`, `docs`, `test`, `perf`, `refactor`, `chore`, `ci`）に従う。
    - **セッションの現在ブランチ（`arena/...`）以外に checkout / push しないこと。**
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-11-14 -->

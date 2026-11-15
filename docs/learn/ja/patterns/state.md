@@ -162,5 +162,3 @@ pub fn setFilter(state: *State, args: struct { text: []const u8 }) !Snapshot { .
 
 - 失敗をどう返すか: [エラーの設計](errors.md)
 - 実際の `State` の例: [`examples/counter`](../../../../examples/counter/README.md)
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->
