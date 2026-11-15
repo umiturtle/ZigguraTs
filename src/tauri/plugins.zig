@@ -54,6 +54,7 @@ pub const PluginError = error{
 /// Result of the store restore attempted at startup. The app can inspect this instead of an
 /// empty state appearing silently after an unreadable or corrupt file.
 pub const RestoreDiagnostics = struct {
+    /// Outcome of the most recent store restore.
     pub const Status = enum {
         /// The saved file was read and every key restored.
         ok,
