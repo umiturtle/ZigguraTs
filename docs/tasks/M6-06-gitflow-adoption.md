@@ -5,7 +5,7 @@
 - **PR Head**: `feature/gitflow-adoption`
 - **Scope**: `scripts/gitflow.sh`, `scripts/check-docs.py`, `scripts/status.sh`, `.github/workflows/ci.yml`, `.github/PULL_REQUEST_TEMPLATE.md`, `docs/contributing/gitflow*.md`, `docs/INDEX*.md`, `AGENTS.md`
 - **Upstream Reference**: なし（ブランチ運用。上流 Tauri のコードには触れない）
-- **Next Step**: PR #30（`feature/gitflow-adoption` → `develop`）の 3 OS CI を `gh pr checks 30` で確認し、緑ならオーナーのマージを待つ。PR #28 / #29 の扱いはオーナーが決める。
+- **Next Step**: PR #30（`feature/gitflow-adoption` → `develop`）の再実行 CI を `gh pr checks 30` で確認する。緑ならオーナーが develop へマージする。
 
 ---
 
@@ -35,7 +35,7 @@
   - 規約 19 を `scripts/check-docs.py` に追加
   - `AGENTS.md`・PR テンプレート・`status.sh`（PR base 表示）を更新
 - **作業中・直前の状態**:
-  - 同期台帳を `--sync` で更新済み。PR #30 を作成し、CI 実行中。
+  - 同期台帳を `--sync` で更新済み。PR #30 を作成し、`develop` をマージしてコンフリクトを解消済み（gitflow ガイドは feature 側を採用）。CI 再実行中。
 - **ハマりどころ**:
   - 協開発ブランチ `develop` は `ed9fa16`（gitflow ブートストラップ）で、当ブランチとは
     docs の差分がある。PR の base を `develop` にすると、この差分もレビュー対象になる。
@@ -64,3 +64,4 @@
 - `python3 scripts/check-docs.py` → `Documentation check OK (180 markdown files verified, 34 reader pages in each of 2 languages)`
 - `./zigw quick-test` → `All 10 tests passed.`
 - PR #30 の `gitflow PR base` ジョブ → pass (8s)
+- Windows CLI smoke が 1 回だけ `.zig-cache` の `options.zig` FileNotFound で失敗（同一コミットの push 実行では pass）。キャッシュ起因のフレークとして再実行で確認中。
