@@ -1,11 +1,11 @@
 # Task M6-06: gitflow 完全導入（main / develop / feature / release / hotfix）
 
-- **Status**: `in_progress`
+- **Status**: `review`
 - **Branch**: `arena/docs-runtime-simplification`
 - **PR Head**: `feature/gitflow-adoption`
 - **Scope**: `scripts/gitflow.sh`, `scripts/check-docs.py`, `scripts/status.sh`, `.github/workflows/ci.yml`, `.github/PULL_REQUEST_TEMPLATE.md`, `docs/contributing/gitflow*.md`, `docs/INDEX*.md`, `AGENTS.md`
 - **Upstream Reference**: なし（ブランチ運用。上流 Tauri のコードには触れない）
-- **Next Step**: `python3 scripts/check-docs.py --sync` で同期台帳を更新し、`./zigw quick-test` / `fmt` / `check-docs` を通してから `feature/gitflow-adoption` を push し、PR #29 を `develop` 向けの新 PR に置き換える。
+- **Next Step**: PR #30（`feature/gitflow-adoption` → `develop`）の 3 OS CI を `gh pr checks 30` で確認し、緑ならオーナーのマージを待つ。PR #28 / #29 の扱いはオーナーが決める。
 
 ---
 
@@ -21,8 +21,8 @@
 - [x] `AGENTS.md` にエージェントの PR 手順（`feature/<slug>` → `develop`）を追記
 - [x] `scripts/check-docs.py` の規約 19 で intake（CI トリガ・検証スクリプト・日英ガイド・PR テンプレート）を機械検査
 - [x] `scripts/doc-sync.json` を `--sync` で更新
-- [ ] `./zigw quick-test` / `python3 scripts/check-docs.py` / `bash scripts/gitflow.sh --self-test` のローカルパス
-- [ ] `feature/gitflow-adoption` → `develop` の PR で 3 OS CI が緑
+- [x] `./zigw quick-test` / `python3 scripts/check-docs.py` / `bash scripts/gitflow.sh --self-test` のローカルパス
+- [ ] PR #30（`feature/gitflow-adoption` → `develop`）で 3 OS CI が緑
 
 ---
 
@@ -35,7 +35,7 @@
   - 規約 19 を `scripts/check-docs.py` に追加
   - `AGENTS.md`・PR テンプレート・`status.sh`（PR base 表示）を更新
 - **作業中・直前の状態**:
-  - 同期台帳（`scripts/doc-sync.json`）が未更新。`--sync` 実行待ち。
+  - 同期台帳を `--sync` で更新済み。PR #30 を作成し、CI 実行中。
 - **ハマりどころ**:
   - 協開発ブランチ `develop` は `ed9fa16`（gitflow ブートストラップ）で、当ブランチとは
     docs の差分がある。PR の base を `develop` にすると、この差分もレビュー対象になる。
@@ -61,3 +61,6 @@
 - `bash scripts/gitflow.sh --self-test` → `OK gitflow names=8 rejected=6 bases=8 base-rejected=6`
 - `bash scripts/gitflow.sh --check-pr-base arena/m6-04-feature arena/docs-runtime-simplification` → OK（積み上げ）
 - `bash scripts/gitflow.sh --check-pr-base main arena/docs-runtime-simplification` → INVALID（exit 1）
+- `python3 scripts/check-docs.py` → `Documentation check OK (180 markdown files verified, 34 reader pages in each of 2 languages)`
+- `./zigw quick-test` → `All 10 tests passed.`
+- PR #30 の `gitflow PR base` ジョブ → pass (8s)
