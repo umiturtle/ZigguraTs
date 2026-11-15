@@ -1,6 +1,6 @@
 # Task M6-04: 後続 7 タスクの実装
 
-- **Status**: `review` <!-- todo | in_progress | review | done | blocked -->
+- **Status**: `done` <!-- todo | in_progress | review | done | blocked -->
 - **Branch**: `arena/54b5d11d-z-ts`（main `9530b03` = PR #26 マージ後）
 - **Scope**: `src/tauri/providers.zig`（新規）, `src/tauri/{path,plugins,monitor,mod}.zig`,
   `src/tauri/native.zig`, `src/tauri/native_gtk.zig`, `src/tauri/tray/native_gtk.zig`,
@@ -10,8 +10,8 @@
   `scripts/check-docs.py`（規約 24）, `scripts/doc-sync.json`, 本ファイル
 - **Upstream Reference**: [`M6-03-doc-meta-and-compatibility.md`](M6-03-doc-meta-and-compatibility.md) §4,
   [`../reference/compatibility.md`](../reference/compatibility.md)
-- **Next Step**: 実装を push → PR を 1 本作成 → 3 OS CI 7/7 を確認 → `gh pr merge` →
-  タスク票を `done` にする。
+- **Next Step**: 完了。PR [#27](https://github.com/umiturtle/ZigguraTs/pull/27) は
+  `main e3cc338` にマージ済みで、3 OS CI / Pages ともに緑。次の作業は別タスク票で宣言する。
 
 ---
 
@@ -75,35 +75,29 @@ M6-03 §4 に記録した 7 件を**すべて実装**する。Doc に弱点を�
 
 ## Current State / Next Step
 
-- **現在**: 7 タスクすべて実装・ローカル検証完了。
-  - **1** `PathState.fromEnvironment()` + `auto_detect` + `owned_strings`/`deinit`。
-    `RuntimeProviders.detectPath()` が `HOME` / `USERPROFILE` / `XDG_*` / `APPDATA` / `LOCALAPPDATA` /
-    `TMPDIR` を読み、`DesktopRuntime.create()` が未指定なら自動適用。`environ=null` は決定論的フォールバック。
-  - **2** `zts_webview` の 4 バックエンドに `screens()` / `cursorPosition()`。Linux は GDK 全モニター +
-    HiDPI + seat カーソル、macOS は `NSScreen` + `NSEvent`、Windows はプライマリ + `GetDpiForSystem` +
-    `GetCursorPos`、Mock は決定論的 1 台。`app_runtime.monitorList` / `monitorCursor` が provider を自動登録。
-  - **3** `Options.autosave`（既定 true）で `set`/`delete`/`clear` が保存、`RestoreDiagnostics` が
-    `ok/missing/unreadable/malformed` とキー数を記録。`catch {}` を診断化。
-  - **4** ロックファイル `zts-lock-v2 <pid>`、`reclaimStaleLock()` が死んだ所有者のみ削除して 1 回再試行。
-    時刻不使用、`process_alive` 未登録は fail-closed。`lock_path=null` はメモリのみ・常に primary。
-  - **5** `zts init` テンプレートに `State`/`Commands.increment`/`rpc.Schema` と `invoke("increment")`
-    ＋ `ZIG OFFLINE` パネルを同梱（1 embedded asset 維持、実ビルド確認済み）。`zts dev` が範囲を明示。
-  - **6** `zts_tauri` に `RuntimeProviders`、`CorePluginStates.create()` と `DesktopRuntime.create()`
-    の 1 箇所で path/monitor/menu/tray を適用。`applyToPluginOptions()` が P2 も一括設定。
-    `z_ts` は `zts_tauri_native` に依存しない（DAG 維持）。
-  - **7** `libayatana-appindicator3` の `AppIndicator` を主経路に採用（CI に既存依存）。
-    `GtkStatusIcon` は互換フォールバックに格下げし click emitter の 3 OS 同一挙動を維持。
-    `build.zig` に `linkSystemLibrary` 追加。
-  - **規約 24** が 7 タスクの実装トークンを機械検査。日英 `compatibility.md` に解決表と配線例、
-    `start.md` に `zts dev` の境界を追記。同期台帳 70 ペア・232 ページにメタ。
+- **完了**: 7 タスクすべて実装・マージ・公開まで終了。
+- **PR [#27](https://github.com/umiturtle/ZigguraTs/pull/27)**: 1 本のみ。
+  最終 CI [`43677124143`](https://github.com/umiturtle/ZigguraTs/actions/runs/43677124143) が 7/7 緑、
+  同コミットの push run [`43677121049`](https://github.com/umiturtle/ZigguraTs/actions/runs/43677121049) も 7/7 緑。
+  `gh pr merge 27 --merge` → `main e3cc338`。
+- **マージ後 `main`**: CI [`43677889302`](https://github.com/umiturtle/ZigguraTs/actions/runs/43677889302) が 7/7 緑、
+  Pages [`43677889300`](https://github.com/umiturtle/ZigguraTs/actions/runs/43677889300) が build + deploy 成功。
+- **CI で見つけて直した 4 点**（いずれもローカルでは再現不能だった 3 OS 固有の問題）:
+  1. `CorePluginStates.create()` を 5 引数にした際、`examples/counter/src/{app,live,live_test}.zig` の呼び出しが
+     4 引数のままだった → macOS / Windows のコンパイルエラーを修正。
+  2. GTK `createIndicator()` が optional な `options.id` を `allocZ` に渡していた → `orelse "zts-tray"`。
+  3. `GetDpiForSystem` の DLL 宣言を `kernel32` → `user32` に修正。
+  4. `api_undoc=1`（`RestoreDiagnostics.Status` の `///` 不足）→ CI ゲート `api_undoc=0` を満たした。
+- **`asset://` 回帰の修正**: `RuntimeProviders.detectPath()` を `cfg.environ != null` のときだけ呼ぶように変更。
+  ヘッドレス E2E / wasm / 埋め込みホストは明示 `cfg.paths` を保持し、Xvfb の `asset://` Range が 206 を返す。
+  `monitorList()` は画面が無い環境で空リストを返さず、決定論的 1 台にフォールバック。
 - **ローカル緑**: `quick-test`（93 tests 含む全群）、`build test` exit 0、`doctest blocks=20`、
-  `docs-check`（86 tests + `pages=344 links=2931 … api_undoc=5`）、`fmt --check`、`check-docs.py`
+  `docs-check`（86 tests + `pages=344 links=2931 … api_undoc=0`）、`fmt --check`、`check-docs.py`
   （223 md / 53 読者ページ × 2、規約 24 含む）、`gen-framework-tutorials.py --check`（56 pages）、
   `node --test` 7/7、`gitflow.sh --self-test`、`x86_64-windows-gnu` クロスビルド exit 0、
   scaffold したテンプレートの `zig build` と実行（`demo: 1 embedded assets`）。
-- **未検証**: GTK / Cocoa の実リンクと AppIndicator の ABI は 3 OS CI でのみ確認できる
-  （ローカルは libwebkit 不足）。`api_undoc=5` は新規 FFI 定数で、CI ゲートは 0 を要求しない。
-- **未実施**: PR 作成・3 OS CI・マージ。
-- **次の 1 手**: 実装を push → PR 1 本 → CI 7/7 → `gh pr merge` → 票を `done`。
+- **不変**: `AGENTS.md` / `docs/roadmap/milestones.md` のチェックボックス、`learn_path.steps` の
+  5 ステップ・95 分は非編集。規約 1–24 維持。同期台帳 70 ペア・232 ページにメタ。
+- **次の 1 手**: なし。
 
 <!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-11-14 -->
