@@ -63,7 +63,7 @@ bash scripts/gitflow.sh --check-pr-base develop feature/window-state
 | PR base | 許可される head |
 |---|---|
 | `main` | `release/<x.y.z>` / `hotfix/<x.y.z>` のみ |
-| `develop` | `feature/<slug>` / `arena/<agent>` / `release/<x.y.z>` / `hotfix/<x.y.z>` |
+| `develop` | `feature/<slug>` / `arena/<agent>` / `release/<x.y.z>` / `hotfix/<x.y.z>` / `main`（リリース後の back-merge） |
 | `feature/*` `release/*` `hotfix/*` `arena/*` | 同じ系統の積み上げ（`arena/*` を含む） |
 
 `main` へ直接 `feature/*` や `arena/*` を向ける PR は落ちます。次期リリースの変更は

@@ -28,7 +28,9 @@ echo "Current branch : ${CUR_BRANCH}"
 echo "HEAD commit    : $(git log -1 --oneline 2>/dev/null || echo 'none')"
 if [[ -x scripts/gitflow.sh ]]; then
   PR_BASE_HINT="$(bash scripts/gitflow.sh 2>/dev/null | sed -n 's/^PR base: //p' || true)"
-  [[ -n "$PR_BASE_HINT" ]] && echo "PR base (gitflow): ${PR_BASE_HINT}"
+  if [[ -n "$PR_BASE_HINT" ]]; then
+    echo "PR base (gitflow): ${PR_BASE_HINT}"
+  fi
 fi
 echo ""
 

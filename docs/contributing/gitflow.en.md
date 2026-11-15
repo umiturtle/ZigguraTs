@@ -64,7 +64,7 @@ bash scripts/gitflow.sh --check-pr-base develop feature/window-state
 | PR base | Allowed head |
 |---|---|
 | `main` | `release/<x.y.z>` / `hotfix/<x.y.z>` only |
-| `develop` | `feature/<slug>` / `arena/<agent>` / `release/<x.y.z>` / `hotfix/<x.y.z>` |
+| `develop` | `feature/<slug>` / `arena/<agent>` / `release/<x.y.z>` / `hotfix/<x.y.z>` / `main` (back-merge after a release) |
 | `feature/*` `release/*` `hotfix/*` `arena/*` | stacked work from the same family (including `arena/*`) |
 
 A PR that points `feature/*` or `arena/*` straight at `main` fails. Next-release work enters

@@ -2,7 +2,7 @@
   "schema": 1,
   "verified": {
     "date": "2026-11-15",
-    "commit": "60fb572",
+    "commit": "f584edc",
     "zts_version": "0.1.0",
     "zig_version": "0.17.0",
     "checks": [
@@ -58,15 +58,15 @@
       "ja": "docs/contributing/doc-sync.md",
       "en": "docs/contributing/doc-sync.en.md",
       "last_rewritten": "2026-10-21",
-      "ja_sha256": "35cb40b08e8a5bb10aab9fddaaaedea81c2cb780b4b14b427601e736537b076d",
-      "en_sha256": "b885832c11dafd0e2b938913208eda84422fd31f6bc4d27d0cbd4d74d749415c"
+      "ja_sha256": "1dade3656505680fe49ca4dd60f469be0e24106c8057697f35bf5df50eeae2ab",
+      "en_sha256": "84aba86eca801e3943aa7d848bf067ec2864861c40eb27a8894b8f229f6dd117"
     },
     {
       "ja": "docs/contributing/gitflow.md",
       "en": "docs/contributing/gitflow.en.md",
       "last_rewritten": "2026-11-15",
-      "ja_sha256": "bd47ceb9ef34a14b70d1504d2551ddf44dcd23b4027fed14cb5ee93c1db1152b",
-      "en_sha256": "dd0ecb835c7757adccdbc4e72db4bc07aa776fd7bae98e7a452b877603f63282"
+      "ja_sha256": "b7ed439267109c67aa8220e28b3736ec6393f32dfec26bce5ea054353048032d",
+      "en_sha256": "ae375dfc9a858685f62a69925bfc8810fdd49f675c736f979bbc9524f4bed6e1"
     },
     {
       "ja": "docs/contributing/repository-map.md",

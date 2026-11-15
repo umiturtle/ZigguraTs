@@ -56,7 +56,8 @@ pr_base_ok() {
         main)
             [[ "$head" == release/* || "$head" == hotfix/* ]] ;;
         develop)
-            [[ "$head" == feature/* || "$head" == arena/* || "$head" == release/* || "$head" == hotfix/* ]] ;;
+            # `main` is the back-merge after a release; the rest is next-release work.
+            [[ "$head" == main || "$head" == feature/* || "$head" == arena/* || "$head" == release/* || "$head" == hotfix/* ]] ;;
         *)
             # Stacked work: an owner branch or an agent ref may receive another non-trunk branch.
             [[ "$head" != main && "$head" != develop ]] ;;
@@ -69,7 +70,7 @@ print_pr_base() {
         printf 'OK PR base %s <- %s\n' "$base" "$head"
     else
         echo "INVALID PR base: $base <- $head" >&2
-        echo "expected: main <- release/*|hotfix/*; develop <- feature/*|arena/*|release/*|hotfix/*;" >&2
+        echo "expected: main <- release/*|hotfix/*; develop <- main|feature/*|arena/*|release/*|hotfix/*;" >&2
         echo "          any other gitflow base <- a non-trunk branch (stacked work)" >&2
         return 1
     fi
@@ -100,13 +101,13 @@ self_test() {
 
     local ok_pairs=(
         "develop|feature/window-state" "develop|arena/c1ae6863-z-ts"
-        "develop|release/0.1.1" "develop|hotfix/0.1.2"
+        "develop|release/0.1.1" "develop|hotfix/0.1.2" "develop|main"
         "main|release/0.1.1" "main|hotfix/0.1.2"
         "arena/a|arena/b" "feature/a|arena/b"
     )
     local bad_pairs=(
         "main|arena/c1ae6863-z-ts" "main|feature/window-state" "main|develop"
-        "develop|main" "topic/thing|arena/a" "develop|release/beta-1.0"
+        "feature/a|main" "topic/thing|arena/a" "develop|release/beta-1.0"
     )
     local pair
     for pair in "${ok_pairs[@]}"; do
