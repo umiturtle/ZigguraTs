@@ -64,4 +64,4 @@
 - `python3 scripts/check-docs.py` → `Documentation check OK (180 markdown files verified, 34 reader pages in each of 2 languages)`
 - `./zigw quick-test` → `All 10 tests passed.`
 - PR #30 の `gitflow PR base` ジョブ → pass (8s)
-- Windows CLI smoke が 1 回だけ `.zig-cache` の `options.zig` FileNotFound で失敗（run `43703458399`）。同一コミットの run `43703451267` では pass しているため、まず再実行で切り分ける。
+- Windows CLI smoke が `.zig-cache/o/<hash>/options.zig: FileNotFound` で失敗する事象を 2 回観測（PR イベントの run `43703458399` / `43775508184`）。同じコミットの push イベント run `43703451267` / `43775504522` は pass。`ZIG_LOCAL_CACHE_DIR` と `ZIG_GLOBAL_CACHE_DIR` が同じ `.zig-cache` を指しており、Zig 0.17 の `addOptions` 生成物が競合で消える可能性がある。再実行で切り分け、再発するなら CLI smoke のキャッシュディレクトリ分離を検討する。
