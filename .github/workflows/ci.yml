@@ -24,7 +24,51 @@ permissions:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # 1. Linux CI (Docs lint + Formatting + Xvfb GTK3 / WebKit2GTK 4.1 + tsc/Node)
+  # 0. Static checks: docs structure + sync ledger, gitflow names, formatting,
+  #    doctest, font coverage and the TypeScript typecheck.
+  #
+  #    These are OS-independent text/source checks. Keeping them out of ci-linux
+  #    means a docs drift (for example a missing `check-docs.py --sync`) fails in
+  #    seconds instead of killing the Xvfb matrix and the screenshot artifact the
+  #    Cross-OS parity job depends on.
+  # ---------------------------------------------------------------------------
+  ci-static:
+    name: Static (docs, gitflow, format, doctest)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.22.0"
+
+      - name: Lint docs, gitflow names, formatting & typecheck
+        run: |
+          set -o pipefail
+          chmod +x ./zigw
+          {
+            python3 scripts/check-docs.py
+            bash scripts/gitflow.sh --self-test
+            node --test tests/ci/publish-check-run-summary.test.cjs
+            ./zigw doctest
+            node scripts/check-font-coverage.mjs
+            npx -y -p typescript tsc --noEmit --strict --target esnext --module esnext --moduleResolution bundler tests/bridge/verify_bridge_e2e.ts
+            ./zigw fmt --check src/ tests/ examples/ build.zig build.zig.zon examples/counter/build.zig.zon
+          } 2>&1 | tee static-output.log
+
+      - name: Mirror the static checks into the Step Summary
+        if: always()
+        run: |
+          {
+            echo '### Static checks (docs, gitflow, format, doctest)'
+            echo '```text'
+            cat static-output.log 2>/dev/null || echo '(no log)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # 1. Linux CI (Xvfb GTK3 / WebKit2GTK 4.1 native matrix + screenshot gates)
   # ---------------------------------------------------------------------------
   ci-linux:
     name: Linux (Ubuntu 24.04 + Xvfb + WebKit2GTK 4.1)
@@ -64,19 +108,14 @@ jobs:
             libayatana-appindicator3-dev \
             xvfb
 
-      - name: Lint docs, check formatting & run tests under Xvfb
+      # The docs/gitflow/format/doctest/typecheck checks live in `ci-static`, so
+      # this job only pays for the native GTK/WebKit2GTK matrix.
+      - name: Run the GTK3/WebKit2GTK test matrix under Xvfb
         run: |
           set -o pipefail
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           chmod +x ./zigw
           {
-            python3 scripts/check-docs.py
-            bash scripts/gitflow.sh --self-test
-            node --test tests/ci/publish-check-run-summary.test.cjs
-            ./zigw doctest
-            node scripts/check-font-coverage.mjs
-            npx -y -p typescript tsc --noEmit --strict --target esnext --module esnext --moduleResolution bundler tests/bridge/verify_bridge_e2e.ts
-            ./zigw fmt --check src/ tests/ examples/ build.zig build.zig.zon examples/counter/build.zig.zon
             WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1 ZTS_WEBVIEW_SOFTWARE_RENDER=1 \
               xvfb-run -a ./zigw build test -Dgtk=true --summary all
             WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1 ZTS_WEBVIEW_SOFTWARE_RENDER=1 \
