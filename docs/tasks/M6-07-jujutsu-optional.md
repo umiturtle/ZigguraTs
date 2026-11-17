@@ -1,11 +1,11 @@
 # Task M6-07: Jujutsu（jj）を任意レイヤーとして導入
 
-- **Status**: `review`
+- **Status**: `done`
 - **Branch**: `arena/docs-runtime-simplification`
 - **PR Head**: `feature/gitflow-adoption`
 - **Scope**: `docs/contributing/jujutsu.md`, `docs/contributing/jujutsu.en.md`, `docs/INDEX.md`, `docs/INDEX.en.md`, `scripts/status.sh`, `.gitignore`, `AGENTS.md`
 - **Upstream Reference**: なし（開発ツール。プロダクトコードには触れない）
-- **Next Step**: PR #30 の CI が緑になったら、`jj git init --colocate` 済みの環境で `jj st` / `jj bookmark list` が期待通り動くことを確認し、オーナーのマージを待つ。
+- **Next Step**: 完了。PR #30 に同梱して `develop` へマージ済み（`5ce6f6e`）。
 
 ---
 
@@ -21,7 +21,7 @@ git のまま維持する。
 - [x] 日英ガイド（`docs/contributing/jujutsu.md` / `.en.md`）と INDEX 行を追加
 - [x] gitflow ガイドの「関連」からリンク
 - [x] `scripts/status.sh` のツールチェーン欄に jj の状態を表示
-- [ ] PR #30 の 3 OS CI が緑
+- [x] PR #30 の 3 OS CI が緑（15/15 pass）
 
 ---
 
@@ -33,7 +33,7 @@ git のまま維持する。
   - リモートブックマーク（`main` / `develop` / `feature/gitflow-adoption` / `arena/*`）を track。
   - ドキュメント一式と `status.sh` の表示を追加し、`check-docs.py` / `--sync` を通した。
 - **作業中・直前の状態**:
-  - PR #30（gitflow 完全導入 + CI キャッシュ修正）にこの変更を積み、CI を再実行する。
+  - PR #30（gitflow 完全導入 + CI キャッシュ修正）に同梱し、`develop` へマージ済み（`5ce6f6e`）。
 - **ハマりどころ**:
   - jj は既定でコミットを書き換える。`main` / `develop` など共有ブランチのブックマークは
     書き換えない（ガイドの「注意」に明記）。

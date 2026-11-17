@@ -1,11 +1,11 @@
 # Task M6-06: gitflow 完全導入（main / develop / feature / release / hotfix）
 
-- **Status**: `review`
+- **Status**: `done`
 - **Branch**: `arena/docs-runtime-simplification`
 - **PR Head**: `feature/gitflow-adoption`
 - **Scope**: `scripts/gitflow.sh`, `scripts/check-docs.py`, `scripts/status.sh`, `.github/workflows/ci.yml`, `.github/PULL_REQUEST_TEMPLATE.md`, `docs/contributing/gitflow*.md`, `docs/INDEX*.md`, `AGENTS.md`
 - **Upstream Reference**: なし（ブランチ運用。上流 Tauri のコードには触れない）
-- **Next Step**: PR #30（`feature/gitflow-adoption` → `develop`）の再実行 CI を `gh pr checks 30` で確認する。緑ならオーナーが develop へマージする。
+- **Next Step**: 完了。PR #30 は `develop` へマージ済み（`5ce6f6e`、3 OS CI 15/15 pass）。ルールセットの承認数（一時的に 0 にしていた）を元の 1 に戻す運用だけ残っている。
 
 ---
 
@@ -22,7 +22,7 @@
 - [x] `scripts/check-docs.py` の規約 19 で intake（CI トリガ・検証スクリプト・日英ガイド・PR テンプレート）を機械検査
 - [x] `scripts/doc-sync.json` を `--sync` で更新
 - [x] `./zigw quick-test` / `python3 scripts/check-docs.py` / `bash scripts/gitflow.sh --self-test` のローカルパス
-- [ ] PR #30（`feature/gitflow-adoption` → `develop`）で 3 OS CI が緑
+- [x] PR #30（`feature/gitflow-adoption` → `develop`）で 3 OS CI が緑（15/15 pass）
 
 ---
 
@@ -35,7 +35,8 @@
   - 規約 19 を `scripts/check-docs.py` に追加
   - `AGENTS.md`・PR テンプレート・`status.sh`（PR base 表示）を更新
 - **作業中・直前の状態**:
-  - 同期台帳を `--sync` で更新済み。PR #30 を作成し、`develop` をマージしてコンフリクトを解消済み（gitflow ガイドは feature 側を採用）。CI 再実行中。
+  - 同期台帳を `--sync` で更新済み。PR #30 を作成し、`develop` をマージしてコンフリクトを解消済み（gitflow ガイドは feature 側を採用）。
+  - CI 15/15 pass を確認し、PR #30 を `develop` へマージした（`5ce6f6e`）。
 - **ハマりどころ**:
   - 協開発ブランチ `develop` は `ed9fa16`（gitflow ブートストラップ）で、当ブランチとは
     docs の差分がある。PR の base を `develop` にすると、この差分もレビュー対象になる。
