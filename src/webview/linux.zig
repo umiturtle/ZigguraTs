@@ -692,7 +692,12 @@ pub const LinuxGtkBackend = struct {
             // `error.Unsupported` and no menu bar can ever appear on Linux.
             const box = c.gtk_box_new(c.GTK_ORIENTATION_VERTICAL, 0);
             c.gtk_container_add(@ptrCast(win_widget), box);
-            c.gtk_container_add(@ptrCast(box), @ptrCast(wv));
+            // `gtk_container_add` on a `GtkBox` packs with `expand = FALSE, fill = FALSE`, which
+            // gives the WebView a 1-pixel-tall allocation (the screenshot gallery caught the
+            // 900x1 capture). Pack it explicitly so it fills the window like the embed path.
+            c.gtk_widget_set_hexpand(@ptrCast(wv), 1);
+            c.gtk_widget_set_vexpand(@ptrCast(wv), 1);
+            c.gtk_box_pack_start(@ptrCast(box), @ptrCast(wv), 1, 1, 0);
         }
 
         const win_id = self.windows.acquire(self.allocator, .{

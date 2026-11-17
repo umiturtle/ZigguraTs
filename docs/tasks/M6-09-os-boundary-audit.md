@@ -58,10 +58,13 @@
   - `python3 scripts/check-os-boundary.py`: 60 findings / 60 known（新規 0）。
   - `python3 scripts/check-docs.py`: OK（186 files）。
   - `./zigw fmt --check`: OK。
+- **CI 初回（PR #32）で見つかった追加バグ**:
+  - GTK: `gtk_container_add` で `GtkBox` に入れると `expand=FALSE` になり、
+    スクリーンショットが 900×1 になった。`gtk_box_pack_start(..., TRUE, TRUE, 0)` に修正。
+  - macOS: トレイの `trays.append` が `apply` より先に残っており、失敗時に解放済み
+    entry を `find()` が読んで segfault。GTK と同じ「成功後に append」へ修正。
 - **次にやる 1 手**:
-  - `git diff` をレビューし、`feature/os-boundary-audit` を PR（base: `develop`）にする。
-    CI の `ci-linux`（Xvfb）で test 2 が実走し、`ci-macos` / `ci-windows` で
-    `zts_runtime_native` と native backend のテストが走ることを確認する。
+  - 修正を push し、PR #32 の Linux Xvfb / macOS / Cross-OS parity を再実行して確認する。
 
 ---
 

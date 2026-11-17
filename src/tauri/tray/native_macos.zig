@@ -188,8 +188,10 @@ fn create(_: ?*anyopaque, id: []const u8, options: tray.TrayIconOptions, snapsho
         gpa.destroy(entry);
     }
 
-    trays.append(gpa, entry) catch return error.OutOfMemory;
+    // Publish only after `apply` succeeded (the same rule as the GTK backend): the errdefer
+    // above frees the entry on failure, and `trays` must never point at freed memory.
     try apply(entry, options, snapshot);
+    trays.append(gpa, entry) catch return error.OutOfMemory;
 }
 
 fn update(_: ?*anyopaque, id: []const u8, options: tray.TrayIconOptions, snapshot: ?menu.Snapshot) Error!void {

@@ -42,6 +42,7 @@ pub const GdkRectangle = extern struct {
     height: gint,
 };
 pub const GtkWidget = opaque {};
+pub const GtkBox = opaque {};
 pub const GtkContainer = opaque {};
 pub const GtkWindow = opaque {};
 pub const SoupMessageHeaders = opaque {};
@@ -249,6 +250,7 @@ pub extern "c" fn gtk_container_add(container: *GtkContainer, widget: *GtkWidget
 /// Overlay embedding: a child added to a `GtkBox` only fills it when it expands, and
 /// `gtk_widget_get_parent` is the structural proof that the WebView really lives in the host tree.
 pub extern "c" fn gtk_box_new(orientation: c_int, spacing: gint) *GtkWidget;
+pub extern "c" fn gtk_box_pack_start(box: *GtkBox, child: *GtkWidget, expand: gboolean, fill: gboolean, padding: guint) void;
 pub extern "c" fn gtk_widget_set_hexpand(widget: *GtkWidget, expand: gboolean) void;
 pub extern "c" fn gtk_widget_set_vexpand(widget: *GtkWidget, expand: gboolean) void;
 pub extern "c" fn gtk_widget_get_parent(widget: *GtkWidget) ?*GtkWidget;
