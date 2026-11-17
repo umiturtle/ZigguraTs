@@ -23,6 +23,9 @@ pub const G_SOURCE_REMOVE: gboolean = 0;
 
 // Opaque C handles
 pub const GMainContext = opaque {};
+pub const GdkDisplay = opaque {};
+pub const GdkSeat = opaque {};
+pub const GdkDevice = opaque {};
 pub const GCancellable = opaque {};
 pub const GAsyncResult = opaque {};
 pub const GInputStream = opaque {};
@@ -235,6 +238,12 @@ pub extern "c" fn gtk_window_begin_move_drag(
     root_y: gint,
     timestamp: u32,
 ) void;
+/// Current pointer position in **root** (screen) coordinates. Used by `startDrag`: passing
+/// `(0, 0)` makes GTK compute a bogus offset and the window jumps when the drag starts.
+pub extern "c" fn gdk_display_get_default() ?*GdkDisplay;
+pub extern "c" fn gdk_display_get_default_seat(display: *GdkDisplay) ?*GdkSeat;
+pub extern "c" fn gdk_seat_get_pointer(seat: *GdkSeat) ?*GdkDevice;
+pub extern "c" fn gdk_device_get_position(device: *GdkDevice, screen: ?*?*GdkScreen, x: ?*gint, y: ?*gint) gboolean;
 
 pub extern "c" fn gtk_container_add(container: *GtkContainer, widget: *GtkWidget) void;
 /// Overlay embedding: a child added to a `GtkBox` only fills it when it expands, and

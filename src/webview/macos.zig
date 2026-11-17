@@ -639,6 +639,10 @@ pub const MacOsBackend = struct {
         self.dropSnapshots(win_id);
         _ = self.windows.release(win_id) catch {};
         if (shim.zts_macos_window_close(self.handle, native) == 0) return error.WindowNotFound;
+        // `zts_macos_window_close` detaches the delegate before `[window close]`, so
+        // `windowWillClose:` cannot report this close. Do it here, matching Win32, so the
+        // registry and native menu wrappers forget the window on every backend.
+        if (self.close_handler) |ch| ch.call(win_id);
     }
 
     /// The `NSView*` for `win_id`, or `null`.

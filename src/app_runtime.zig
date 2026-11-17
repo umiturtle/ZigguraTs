@@ -54,6 +54,22 @@ fn noopRpcDispatch(
     return rpc.Responses.unknown_command;
 }
 
+/// Observes windows created/closed by `DesktopRuntime`.
+///
+/// This is the native-agnostic seam an optional package (for example
+/// `zts_runtime_native`) uses to register a window with the OS menu backend and to unregister
+/// it again. `z_ts` itself stays free of GTK / Cocoa / Win32 imports.
+pub const WindowObserver = struct {
+    /// Opaque pointer handed back to both callbacks.
+    ctx: ?*anyopaque = null,
+    /// Called after the window exists and is registered in `WindowRegistry`.
+    onOpen: ?*const fn (ctx: ?*anyopaque, win_id: core.WindowId, spec: core.WindowSpec) void = null,
+    /// Called before `WindowRegistry` forgets the window when a close reaches the runtime
+    /// (the OS close handler). Wrappers that close programmatically must forget the window
+    /// themselves; see `zts_runtime_native.NativeRuntime.closeWindow`.
+    onClose: ?*const fn (ctx: ?*anyopaque, win_id: core.WindowId) void = null,
+};
+
 /// The whole desktop app in one struct: a WebView engine, the Tauri protocol router, the plugin
 /// registry and the per-window state. `run()` is `init` → `step` loop → `deinit`; tests can drive
 /// `step(.poll)` by hand against `HeadlessMock` and never touch a window.
@@ -74,6 +90,8 @@ pub const DesktopRuntime = struct {
     invoke_key: []const u8,
     /// Serves `tauri://` / `ipc://` / `asset://` and owns the RPC handler.
     router: tauri.ProtocolRouter,
+    /// Optional observer used by `zts_runtime_native` (and similar wrappers) to track windows.
+    window_observer: WindowObserver = .{},
 
     /// Builds the engine, plugins and router, and wires the callbacks between them.
     pub fn create(allocator: Allocator, io: Io, cfg: DesktopConfig) !*DesktopRuntime {
@@ -96,6 +114,7 @@ pub const DesktopRuntime = struct {
             .invoke_key_storage = key_buf,
             .invoke_key = &.{},
             .router = undefined,
+            .window_observer = .{},
         };
         self.host_adapter = webview_host.WebviewHost.init(&self.engine);
         self.invoke_key = cfg.invoke_key_override orelse self.invoke_key_storage[0..];
@@ -135,6 +154,7 @@ pub const DesktopRuntime = struct {
         const alloc = self.allocator;
         // Detach callbacks BEFORE destroying GTK/OS windows so synchronous GObject `"destroy"`
         // signals emitted inside `engine.deinit()` never touch torn-down plugin registries!
+        self.window_observer = .{};
         self.engine.setCloseHandler(null);
         self.engine.setMessageHandler(null);
         self.engine.setWindowStateHandler(null);
@@ -183,7 +203,10 @@ pub const DesktopRuntime = struct {
             .fullscreen = spec.fullscreen,
             .devtools = spec.devtools,
             .background_color = spec.background_color,
-            .initial_url = spec.initial_url,
+            // An empty spec URL means "create the window but do not navigate". This is how a
+            // host opens a blank window (and how the OS-boundary integration test exercises
+            // menu registration without starting WebKit's network process).
+            .initial_url = if (spec.initial_url.len == 0) null else spec.initial_url,
             .center = spec.center,
             .maximized = spec.maximized,
             .skip_taskbar = spec.skip_taskbar,
@@ -201,7 +224,14 @@ pub const DesktopRuntime = struct {
             .init_scripts = &scripts,
         });
         try self.plugins.windows.registerWindow(win_id, spec);
+        if (self.window_observer.onOpen) |on_open| on_open(self.window_observer.ctx, win_id, spec);
         return win_id;
+    }
+
+    /// Installs (or clears) the window observer. The observer is not owned by the runtime; it
+    /// must outlive the windows it tracks.
+    pub fn setWindowObserver(self: *DesktopRuntime, observer: WindowObserver) void {
+        self.window_observer = observer;
     }
 
     /// Pumps one turn of the event loop; `false` once the app asked to quit.
@@ -216,6 +246,7 @@ pub const DesktopRuntime = struct {
 
     fn onWindowClosed(ud: ?*anyopaque, win_id: webview.WindowId) void {
         const self: *DesktopRuntime = @ptrCast(@alignCast(ud.?));
+        if (self.window_observer.onClose) |on_close| on_close(self.window_observer.ctx, win_id);
         self.plugins.webviews.unregisterWindow(win_id);
         self.plugins.windows.unregisterWindow(win_id);
     }

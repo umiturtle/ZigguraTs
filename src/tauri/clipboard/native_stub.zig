@@ -3,7 +3,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const clipboard = @import("mod.zig");
+const clipboard = @import("zts_tauri").clipboard;
 
 const Error = clipboard.ClipboardError;
 

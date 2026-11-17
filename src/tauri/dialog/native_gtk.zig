@@ -8,9 +8,9 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const dialog = @import("mod.zig");
+const dialog = @import("zts_tauri").dialog;
 const gtk = @import("../native_gtk.zig");
-const path = @import("../path.zig");
+const path = @import("zts_tauri").path;
 
 const Error = dialog.BackendError;
 
@@ -80,6 +80,28 @@ fn gFreeCb(mem: ?*anyopaque) callconv(.c) void {
     gtk.g_free(mem);
 }
 
+/// Consumes `list` (a `gtk_file_chooser_get_filenames` result) and returns copies of its strings.
+///
+/// GTK transfers ownership of **both** the list and every string to the caller.
+/// `g_slist_free_full(list, g_free)` releases all of them exactly once; copying first and then
+/// freeing each element separately (which the pre-audit code did) double-frees every string.
+fn consumeFilenames(allocator: Allocator, list: *gtk.GSList) Error![]const []const u8 {
+    defer gtk.g_slist_free_full(list, gFreeCb);
+
+    var out: std.ArrayListUnmanaged([]const u8) = .empty;
+    errdefer {
+        for (out.items) |p| allocator.free(p);
+        out.deinit(allocator);
+    }
+    var node: ?*gtk.GSList = list;
+    while (node) |n| : (node = nextOf(n)) {
+        const data = dataOf(n) orelse continue;
+        const raw: [*:0]const u8 = @ptrCast(data);
+        out.append(allocator, try allocator.dupe(u8, std.mem.span(raw))) catch return error.OutOfMemory;
+    }
+    return out.toOwnedSlice(allocator) catch return error.OutOfMemory;
+}
+
 fn openImpl(_: ?*anyopaque, allocator: Allocator, options: dialog.OpenDialogOptions) Error!dialog.Selection {
     if (!gtk.ensureInit()) return error.Unavailable;
 
@@ -106,21 +128,8 @@ fn openImpl(_: ?*anyopaque, allocator: Allocator, options: dialog.OpenDialogOpti
 
     if (options.multiple and !options.directory) {
         const list = gtk.gtk_file_chooser_get_filenames(chooser) orelse return .{};
-        defer gtk.g_slist_free_full(list, gFreeCb);
-
-        var out: std.ArrayListUnmanaged([]const u8) = .empty;
-        errdefer {
-            for (out.items) |p| allocator.free(p);
-            out.deinit(allocator);
-        }
-        var node: ?*gtk.GSList = list;
-        while (node) |n| : (node = nextOf(n)) {
-            const data = dataOf(n);
-            if (data) |raw| {
-                out.append(allocator, try gtk.fromGtkAlloc(allocator, @ptrCast(raw))) catch return error.OutOfMemory;
-            }
-        }
-        return .{ .paths = out.items };
+        // `consumeFilenames` owns `list` from this point, including on its error path.
+        return .{ .paths = try consumeFilenames(allocator, list) };
     }
 
     const raw = gtk.gtk_file_chooser_get_filename(chooser) orelse return .{};
@@ -221,6 +230,24 @@ fn dataOf(node: *gtk.GSList) ?*anyopaque {
 fn nextOf(node: *gtk.GSList) ?*gtk.GSList {
     const next = @as(*const GSListMirror, @ptrCast(@alignCast(node))).next;
     return if (next) |p| @ptrCast(@alignCast(p)) else null;
+}
+
+test "gtk multi-select filenames are freed exactly once" {
+    // GLib list ownership, no display needed. A regression to the old per-element `g_free`
+    // pattern double-frees these strings and glibc/Valgrind aborts the test binary.
+    const allocator = std.testing.allocator;
+    var list: ?*gtk.GSList = null;
+    list = gtk.g_slist_append(list, @ptrCast(gtk.g_strdup("first")));
+    list = gtk.g_slist_append(list, @ptrCast(gtk.g_strdup("second")));
+
+    const paths = try consumeFilenames(allocator, list.?);
+    defer {
+        for (paths) |p| allocator.free(p);
+        allocator.free(paths);
+    }
+    try std.testing.expectEqual(@as(usize, 2), paths.len);
+    try std.testing.expectEqualStrings("first", paths[0]);
+    try std.testing.expectEqualStrings("second", paths[1]);
 }
 
 test "gtk dialog backend degrades to Unavailable without a display" {

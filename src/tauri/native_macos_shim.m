@@ -53,10 +53,16 @@ static NSArray *zts_types_from_extensions(const char *ext_csv) {
 
 /// Brings the app far enough forward that a modal panel is actually usable from a headless
 /// process launched without a bundle (CI runners start the test binary directly).
+/// Brings the app forward for a modal panel **without changing its activation policy**.
+///
+/// The old implementation set `NSApplicationActivationPolicyAccessory` on every call, which hides
+/// a regular app's Dock icon and menu bar after the first dialog. It also ran this helper before
+/// the main-thread block, so a worker-thread dialog touched AppKit off-main.
 static void zts_prepare_app(void) {
+  if (![NSThread isMainThread]) return;
   @autoreleasepool {
-    [NSApplication sharedApplication];
-    [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+    NSApplication *app = [NSApplication sharedApplication];
+    if (app != nil) [app activateIgnoringOtherApps:YES];
   }
 }
 
@@ -71,11 +77,11 @@ char *zts_native_dialog_run(int mode,
                             int multiple,
                             int can_create_directories) {
   __block char *result = NULL;
-  zts_prepare_app();
 
   // AppKit panels must be driven from the main thread.
   void (^work)(void) = ^{
     @autoreleasepool {
+      zts_prepare_app();
       NSString *title_str = title != NULL ? [NSString stringWithUTF8String:title] : nil;
       NSArray *types = zts_types_from_extensions(extensions);
 
@@ -147,10 +153,10 @@ int zts_native_dialog_message(const char *title,
                               int kind,
                               const char *labels) {
   __block int chosen = -1;
-  zts_prepare_app();
 
   void (^work)(void) = ^{
     @autoreleasepool {
+      zts_prepare_app();
       NSAlert *alert = [[NSAlert alloc] init];
       [alert setMessageText:(title != NULL && *title != '\0')
                                 ? [NSString stringWithUTF8String:title]

@@ -156,8 +156,16 @@ if [[ "${1:-}" == "docs-check" ]]; then
   shift
   "$ZIG_BIN" test -Mroot=src/docsite/mod.zig "$@"
   python3 scripts/check-docs.py
+  python3 scripts/check-os-boundary.py
   ZTS_ZIG="$ZIG_BIN" python3 scripts/doc-tests.py
   exec "$ZIG_BIN" build docs
+fi
+
+# `check-os-boundary` — the OS-boundary audit's mechanical net (module ownership, native wiring,
+# silent no-ops, dead public functions). Runs in `ci-static`; this verb is for local use.
+if [[ "${1:-}" == "check-os-boundary" ]]; then
+  shift
+  exec python3 scripts/check-os-boundary.py "$@"
 fi
 
 # `doctest` — compile the ```zig check fences only. Split out so CI (where `zig` is not on PATH

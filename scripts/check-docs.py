@@ -369,6 +369,7 @@ ZIGW_SUBCOMMANDS = {
     "docs-check", # renderer tests + the python gates + `zig build docs`
     "doctest",    # only the ```zig check fences
     "full-test",  # `zig build test`
+    "check-os-boundary", # the OS-boundary static checks (module ownership, wiring, no-ops)
 }
 ZIG_SUBCOMMANDS = {
     "build", "build-exe", "build-lib", "build-obj", "test", "fmt", "version", "cc", "c++",

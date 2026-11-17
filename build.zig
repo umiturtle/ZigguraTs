@@ -75,17 +75,17 @@ pub fn build(b: *std.Build) void {
         "Enable native Windows Win32 + Direct WebView2 backend (default: auto-detected from the target OS)",
     ) orelse is_windows;
 
-    const webview_opts = b.addOptions();
-    webview_opts.addOption(bool, "enable_gtk", is_linux and enable_gtk);
-    webview_opts.addOption(bool, "enable_macos", is_macos and enable_macos);
-    webview_opts.addOption(bool, "enable_windows", is_windows and enable_windows);
-
-    // `M4-01`: native dialog & clipboard backends reuse the same per-OS switches. Keeping them in
-    // a separate option module means `zts_tauri` never sees the flag and stays GUI-free.
-    const native_opts = b.addOptions();
-    native_opts.addOption(bool, "enable_gtk", is_linux and enable_gtk);
-    native_opts.addOption(bool, "enable_macos", is_macos and enable_macos);
-    native_opts.addOption(bool, "enable_windows", is_windows and enable_windows);
+    // One options module for every native backend.
+    //
+    // `zts_webview` and `zts_tauri_native` are imported into the SAME compilation by
+    // `zts_runtime_native`. Two separate `addOptions()` instances generate the same file (the
+    // values are identical), and Zig rejects that as "file exists in modules ..."; one module
+    // instance imported under both names keeps the graph valid and the flags in lockstep.
+    const backend_opts = b.addOptions();
+    backend_opts.addOption(bool, "enable_gtk", is_linux and enable_gtk);
+    backend_opts.addOption(bool, "enable_macos", is_macos and enable_macos);
+    backend_opts.addOption(bool, "enable_windows", is_windows and enable_windows);
+    const backend_opts_mod = backend_opts.createModule();
 
     // -------------------------------------------------------------------------
     // 1. Standalone Public Modules (independently importable via `b.dependency`)
@@ -151,7 +151,7 @@ pub fn build(b: *std.Build) void {
         .link_libc = (is_linux and enable_gtk) or native_macos or native_windows,
         .imports = &.{
             .{ .name = "zts_foundation", .module = foundation_mod },
-            .{ .name = "webview_options", .module = webview_opts.createModule() },
+            .{ .name = "webview_options", .module = backend_opts_mod },
         },
     });
     if (is_linux and enable_gtk) {
@@ -239,12 +239,11 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .link_libc = (is_linux and enable_gtk) or native_macos or native_windows,
         .imports = &.{
-            .{ .name = "zts_foundation", .module = foundation_mod },
-            .{ .name = "zts_web", .module = web_mod },
-            .{ .name = "zts_core", .module = core_mod },
-            .{ .name = "zts_rpc", .module = rpc_mod },
+            // The backends consume the plugin vtables and snapshot types from the public
+            // `zts_tauri` module; importing them by name (not by file path) keeps every file
+            // owned by exactly one module, which is what lets an app import both modules.
             .{ .name = "zts_tauri", .module = tauri_mod },
-            .{ .name = "native_options", .module = native_opts.createModule() },
+            .{ .name = "native_options", .module = backend_opts_mod },
         },
     });
     if (is_linux and enable_gtk) {
@@ -289,7 +288,6 @@ pub fn build(b: *std.Build) void {
         .link_libc = false,
         .imports = &.{
             .{ .name = "zts_foundation", .module = foundation_mod },
-            .{ .name = "zts_web", .module = web_mod },
             .{ .name = "zts_core", .module = core_mod },
             .{ .name = "zts_rpc", .module = rpc_mod },
             .{ .name = "zts_tauri", .module = tauri_mod },
@@ -325,6 +323,24 @@ pub fn build(b: *std.Build) void {
             .{ .name = "zts_tauri", .module = tauri_mod },
             .{ .name = "zts_wasm", .module = wasm_mod },
             .{ .name = "zts_ssg", .module = ssg_mod },
+        },
+    });
+
+    // Level 2b: `zts_runtime_native` — the OPTIONAL bridge between `z_ts.DesktopRuntime` and
+    // `zts_tauri_native`. Kept out of `z_ts` so a headless / HTTP / WASM consumer never links
+    // GTK, Cocoa or Win32. Applications that want native menus, trays, dialogs and clipboard
+    // depend on this module and call `NativeRuntime.init(rt)`.
+    const runtime_native_mod = b.addModule("zts_runtime_native", .{
+        .root_source_file = b.path("src/runtime_native/mod.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = (is_linux and enable_gtk) or native_macos or native_windows,
+        .imports = &.{
+            .{ .name = "z_ts", .module = root_mod },
+            .{ .name = "zts_core", .module = core_mod },
+            .{ .name = "zts_rpc", .module = rpc_mod },
+            .{ .name = "zts_tauri", .module = tauri_mod },
+            .{ .name = "zts_tauri_native", .module = tauri_native_mod },
         },
     });
 
@@ -539,6 +555,24 @@ pub fn build(b: *std.Build) void {
     const core_tests = b.addTest(.{ .root_module = core_mod });
     const tauri_tests = b.addTest(.{ .root_module = tauri_mod });
     const tauri_native_tests = b.addTest(.{ .root_module = tauri_native_mod });
+    const runtime_native_tests = b.addTest(.{ .root_module = runtime_native_mod });
+    const native_integration_mod = b.createModule(.{
+        .root_source_file = b.path("tests/native/integration.zig"),
+        .target = target,
+        .optimize = optimize,
+        // The test reads one environment escape hatch (`ZTS_SKIP_NATIVE_WEBKIT`) via `std.c.getenv`,
+        // so it always links libc even on a `-Dgtk=false` build.
+        .link_libc = true,
+        .imports = &.{
+            .{ .name = "z_ts", .module = root_mod },
+            .{ .name = "zts_core", .module = core_mod },
+            .{ .name = "zts_tauri", .module = tauri_mod },
+            .{ .name = "zts_webview", .module = webview_mod },
+            .{ .name = "zts_tauri_native", .module = tauri_native_mod },
+            .{ .name = "zts_runtime_native", .module = runtime_native_mod },
+        },
+    });
+    const native_integration_tests = b.addTest(.{ .root_module = native_integration_mod });
     const wasm_tests = b.addTest(.{ .root_module = wasm_mod });
     const ssg_tests = b.addTest(.{ .root_module = ssg_mod });
     const standalone_tests = b.addTest(.{ .root_module = standalone_consumer_mod });
@@ -716,6 +750,12 @@ pub fn build(b: *std.Build) void {
     const run_tauri_native_tests = b.addRunArtifact(tauri_native_tests);
     run_tauri_native_tests.has_side_effects = true;
     test_step.dependOn(&run_tauri_native_tests.step);
+    const run_runtime_native_tests = b.addRunArtifact(runtime_native_tests);
+    run_runtime_native_tests.has_side_effects = true;
+    test_step.dependOn(&run_runtime_native_tests.step);
+    const run_native_integration_tests = b.addRunArtifact(native_integration_tests);
+    run_native_integration_tests.has_side_effects = true;
+    test_step.dependOn(&run_native_integration_tests.step);
     test_step.dependOn(&b.addRunArtifact(wasm_tests).step);
     test_step.dependOn(&b.addRunArtifact(ssg_tests).step);
     test_step.dependOn(&b.addRunArtifact(build_tools_tests).step);
@@ -733,5 +773,13 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_wasm_e2e.step);
     // Native Windows E2E (`M3-02`): real HWND + WebView2 round trip, `OK windows-wv2 …` marker.
     if (windows_e2e_run) |run_e2e| test_step.dependOn(&run_e2e.step);
+
+    // Targeted local/CI command for the cross-package OS boundary tests. The default `test`
+    // step runs them too; this step keeps the feedback loop short while iterating on natives.
+    const native_integration_step = b.step(
+        "test-native-integration",
+        "Run the OS boundary integration tests (needs a display for the native cases)",
+    );
+    native_integration_step.dependOn(&b.addRunArtifact(native_integration_tests).step);
     if (c_embed_run) |run_embed| test_step.dependOn(&run_embed.step);
 }

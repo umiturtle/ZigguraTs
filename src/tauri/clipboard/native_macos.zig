@@ -4,7 +4,7 @@ const std = @import("std");
 const cstr = @import("../native_cstr.zig");
 const Allocator = std.mem.Allocator;
 
-const clipboard = @import("mod.zig");
+const clipboard = @import("zts_tauri").clipboard;
 
 const Error = clipboard.ClipboardError;
 

@@ -7,7 +7,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const dialog = @import("mod.zig");
+const dialog = @import("zts_tauri").dialog;
 const win = @import("../native_win32.zig");
 
 const Error = dialog.BackendError;

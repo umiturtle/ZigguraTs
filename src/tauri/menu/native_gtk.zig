@@ -20,8 +20,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const menu = @import("mod.zig");
-const accelerator = @import("accelerator.zig");
+const menu = @import("zts_tauri").menu;
 const gtk = @import("../native_gtk.zig");
 const cstr = @import("../native_cstr.zig");
 
@@ -127,7 +126,7 @@ fn connectActivation(
     }
 }
 
-fn applyAccelerator(widget: *gtk.GtkWidget, acc: accelerator.Accelerator, group: *gtk.GtkAccelGroup) void {
+fn applyAccelerator(widget: *gtk.GtkWidget, acc: menu.Accelerator, group: *gtk.GtkAccelGroup) void {
     const rendered = acc.renderGtk(gpa) catch return;
     defer gpa.free(rendered);
     const z = cstr.allocZ(gpa, rendered) catch return;
@@ -449,7 +448,7 @@ test "gtk menu bar mirrors the flattened snapshot: nesting, labels, sensitivity,
 
     const entries = [_]menu.Entry{
         .{ .kind = .submenu, .id = "1", .text = "_File", .depth = 0 },
-        .{ .kind = .item, .id = "2", .text = "_New", .depth = 1, .accelerator = accelerator.Accelerator.parse("CmdOrCtrl+N") catch unreachable },
+        .{ .kind = .item, .id = "2", .text = "_New", .depth = 1, .accelerator = menu.Accelerator.parse("CmdOrCtrl+N") catch unreachable },
         .{ .kind = .separator, .id = "3", .text = "", .depth = 1 },
         .{ .kind = .item, .id = "4", .text = "E_xit", .depth = 1, .enabled = false, .predefined = .Quit },
         .{ .kind = .submenu, .id = "5", .text = "_View", .depth = 0 },

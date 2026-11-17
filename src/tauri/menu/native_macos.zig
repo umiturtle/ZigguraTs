@@ -17,8 +17,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const menu = @import("mod.zig");
-const wire = @import("snapshot_wire.zig");
+const menu = @import("zts_tauri").menu;
+const wire = menu.snapshot_wire;
 
 const Error = menu.MenuError;
 
