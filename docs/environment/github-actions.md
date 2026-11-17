@@ -15,6 +15,13 @@ Arena ローカル環境は「Linux x86_64 ヘッドレス・毎チャットキ�
 | Windows (`Win32` / `WebView2`) ビルド & テスト | △ PE クロスコンパイル確認のみ | ◎ **`windows-latest` (x64) 実機でネイティブビルド & 実行** |
 | 本家 Rust Tauri（`crates.io` 依存込み）との差分テスト・ベンチマーク | △ 単体クレート FFI のみ | ◎ **フルインターネット & 安定 CPU 環境で正確に計測・比較** |
 
+> **`ci-static`（静的チェックの独立ジョブ）**: `check-docs.py`（規約 13/18/19）・
+> `gitflow.sh --self-test`・`doctest`・フォント被覆・TypeScript 型検査・`fmt --check` は、
+> Xvfb / GTK3 / WebKit2GTK のネイティブ行列（`ci-linux`）とは**別ジョブ**で実行します。
+> docs の同期漏れは数秒で落ち、`ci-linux` が生成するスクリーンショット artifact を入力とする
+> `ci-parity` を巻き込まないためです。`ci-static` が赤なら docs / gitflow / format、
+> `ci-linux` が赤ならネイティブ側、と切り分けられます。
+
 ---
 
 ## 2. エージェントからの CI 実行・ログ取得手順（重要）
