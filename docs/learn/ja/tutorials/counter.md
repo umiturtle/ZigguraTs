@@ -26,20 +26,6 @@ ziggurats リポジトリの操作（ビルド手順や CI）は
 
 <!-- framework-picker -->
 
-このチュートリアルの 9 分岐です。Zig 側はどれも共通です。
-
-| ライブラリ | このチュートリアルの分岐 |
-|---|---|
-| React | [React でカウンター](counter-react.md) |
-| Solid | [Solid でカウンター](counter-solid.md) |
-| Svelte | [Svelte でカウンター](counter-svelte.md) |
-| Angular | [Angular でカウンター](counter-angular.md) |
-| Next.js | [Next.js でカウンター](counter-next.md) |
-| Nuxt | [Nuxt でカウンター](counter-nuxt.md) |
-| Astro | [Astro でカウンター](counter-astro.md) |
-| SvelteKit | [SvelteKit でカウンター](counter-sveltekit.md) |
-| SolidStart | [SolidStart でカウンター](counter-solidstart.md) |
-
 [選択ハブ](frameworks.md) に実物の example と公開デモの一覧があります。
 
 ---
@@ -53,7 +39,7 @@ ziggurats リポジトリの操作（ビルド手順や CI）は
 | OS | Linux（GTK3 + WebKit2GTK 4.1）/ macOS / Windows |
 
 ```bash
-zts version      # zts 0.1.1
+zts version      # zts 0.1.0
 zts doctor       # all checks passed なら準備完了
 ```
 
@@ -217,7 +203,7 @@ zts build --frontend-only          # web/ の再埋め込みだけ
 
 ```text
 $ zts doctor
-zts 0.1.1
+zts 0.1.0
   checkout     /home/you/Z-Ts
   z_ts         present
   zig          /tmp/zts-toolchains/zig/zig
@@ -248,5 +234,3 @@ all checks passed
 | 全コマンド・全オプション | [`docs/reference/cli.md`](../../../reference/cli.md) |
 | 動くサンプル（3 成果物） | [`examples/counter/README.md`](../../../../examples/counter/README.md) |
 | 設計から理解したい | [概念の索引](../concepts/index.md) |
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->

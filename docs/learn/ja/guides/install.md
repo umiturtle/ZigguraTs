@@ -19,25 +19,25 @@
 
 ## 1. `zts` を置く
 
-[GitHub Releases](https://github.com/umiturtle/ZigguraTs/releases) から、使う OS のバイナリを
-1 つ落とします（`zts-0.1.1-linux-x86_64` のような名前）。約 300 KB、**libc に依存しない
+[GitHub Releases](https://github.com/umiturtle/Z-Ts/releases) から、使う OS のバイナリを
+1 つ落とします（`zts-0.1.0-linux-x86_64` のような名前）。約 300 KB、**libc に依存しない
 単体ファイル**で、隣に置くものはありません。
 
 ```bash
 # Linux / macOS（`linux-aarch64` など、実行環境に合う名前を選ぶ）
-curl -LO https://github.com/umiturtle/ZigguraTs/releases/download/v0.1.1/zts-0.1.1-linux-x86_64
-chmod +x zts-0.1.1-linux-x86_64
+curl -LO https://github.com/umiturtle/Z-Ts/releases/download/v0.1.0/zts-0.1.0-linux-x86_64
+chmod +x zts-0.1.0-linux-x86_64
 mkdir -p ~/.local/bin
-mv zts-0.1.1-linux-x86_64 ~/.local/bin/zts
+mv zts-0.1.0-linux-x86_64 ~/.local/bin/zts
 export PATH="$HOME/.local/bin:$PATH"
-zts version             # → zts 0.1.1
+zts version             # → zts 0.1.0
 ```
 
 ```powershell
 # Windows（PowerShell）
 New-Item -ItemType Directory -Force "$HOME\bin" | Out-Null
 Invoke-WebRequest `
-  https://github.com/umiturtle/ZigguraTs/releases/download/v0.1.1/zts-0.1.1-windows-x86_64.exe `
+  https://github.com/umiturtle/Z-Ts/releases/download/v0.1.0/zts-0.1.0-windows-x86_64.exe `
   -OutFile "$HOME\bin\zts.exe"
 $env:PATH = "$HOME\bin;$env:PATH"
 zts version
@@ -79,14 +79,14 @@ zts build
 必要はありません）。
 
 ```zig
-.z_ts = .{ .url = "https://github.com/umiturtle/ZigguraTs/releases/download/v0.1.1/z_ts-0.1.1.tar.gz", .hash = "z_ts-0.1.1-…" },
+.z_ts = .{ .url = "https://github.com/umiturtle/Z-Ts/releases/download/v0.1.0/z_ts-0.1.0.tar.gz", .hash = "z_ts-0.1.0-…" },
 ```
 
 取得物は Zig のキャッシュに入るので、2 回目以降はオフラインでもビルドできます。**チェックアウト
 を clone しておく必要はありません**。
 
 > `zig fetch` を自分で叩いて中身を確かめることもできます。
-> `zig fetch https://github.com/umiturtle/ZigguraTs/releases/download/v0.1.1/z_ts-0.1.1.tar.gz`
+> `zig fetch https://github.com/umiturtle/Z-Ts/releases/download/v0.1.0/z_ts-0.1.0.tar.gz`
 
 ## 4. チェックアウトから自分でビルドする場合
 
@@ -94,7 +94,7 @@ ziggurats 本体を直したい人、公開バイナリを使わずに済ませ�
 `zig` は自分で用意してください。
 
 ```bash
-git clone https://github.com/umiturtle/ZigguraTs.git
+git clone https://github.com/umiturtle/Z-Ts.git
 cd Z-Ts
 zig build                # → zig-out/bin/zts（Zig 0.17 が PATH に必要）
 ```
@@ -134,5 +134,3 @@ zig build                # → zig-out/bin/zts（Zig 0.17 が PATH に必要）
 - 最初のアプリ: [`counter.md`](../tutorials/counter.md)
 - 全コマンドと全オプション: [`reference/cli.md`](../../../reference/cli.md)
 - 動かないとき: [`troubleshooting.md`](troubleshooting.md)
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->

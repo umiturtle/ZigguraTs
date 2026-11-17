@@ -162,5 +162,3 @@ into `init`.
 
 - How to report failure: [Designing errors](errors.md)
 - A real `State`: [`examples/counter`](../../../../examples/counter/README.md)
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->

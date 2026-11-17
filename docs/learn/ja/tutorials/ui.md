@@ -171,20 +171,6 @@ Zig の `error{}` は「画面の対応が変わる単位」で切ります（[�
 
 <!-- framework-picker -->
 
-このチュートリアルの 9 分岐です。Zig 側はどれも共通です。
-
-| ライブラリ | このチュートリアルの分岐 |
-|---|---|
-| React | [React で画面](ui-react.md) |
-| Solid | [Solid で画面](ui-solid.md) |
-| Svelte | [Svelte で画面](ui-svelte.md) |
-| Angular | [Angular で画面](ui-angular.md) |
-| Next.js | [Next.js で画面](ui-next.md) |
-| Nuxt | [Nuxt で画面](ui-nuxt.md) |
-| Astro | [Astro で画面](ui-astro.md) |
-| SvelteKit | [SvelteKit で画面](ui-sveltekit.md) |
-| SolidStart | [SolidStart で画面](ui-solidstart.md) |
-
 [選択ハブ](frameworks.md) に実物の example 一覧があります。
 
 ## ここから先
@@ -195,5 +181,3 @@ Zig の `error{}` は「画面の対応が変わる単位」で切ります（[�
 | `invoke` の引数・型・TypeScript 生成 | [ガイド: コマンド](../guides/rpc.md) |
 | ウィンドウ・ダイアログ・ファイル | [ガイド: プラグイン](../guides/plugins.md) |
 | 配布物（`.deb` / `.dmg` / `.exe`） | [ガイド: 配布物](../guides/package.md) |
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->

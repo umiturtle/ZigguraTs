@@ -21,22 +21,6 @@
 
 <!-- framework-picker -->
 
-### 3 本 × 9 ライブラリの分岐
-
-どの分岐にも **状態プリミティブと Zig 側の連携**（seal・二重状態・SSR ガード）の章があります。
-
-| ライブラリ | カウンター | Todo | 画面 | 状態の持ち方 |
-|---|---|---|---|---|
-| React | [counter](counter-react.md) | [todo](todo-react.md) | [ui](ui-react.md) | `useState(0)` |
-| Solid | [counter](counter-solid.md) | [todo](todo-solid.md) | [ui](ui-solid.md) | `createSignal(0)` |
-| Svelte | [counter](counter-svelte.md) | [todo](todo-svelte.md) | [ui](ui-svelte.md) | `let count = 0` |
-| Angular | [counter](counter-angular.md) | [todo](todo-angular.md) | [ui](ui-angular.md) | `signal(0)` |
-| Next.js | [counter](counter-next.md) | [todo](todo-next.md) | [ui](ui-next.md) | `useState(0)`（`'use client'`） |
-| Nuxt | [counter](counter-nuxt.md) | [todo](todo-nuxt.md) | [ui](ui-nuxt.md) | `ref(0)` |
-| Astro | [counter](counter-astro.md) | [todo](todo-astro.md) | [ui](ui-astro.md) | DOM を直接更新（`data-zts`） |
-| SvelteKit | [counter](counter-sveltekit.md) | [todo](todo-sveltekit.md) | [ui](ui-sveltekit.md) | `let count = 0` |
-| SolidStart | [counter](counter-solidstart.md) | [todo](todo-solidstart.md) | [ui](ui-solidstart.md) | `createSignal(0)` |
-
 [選択ハブ](frameworks.md) には各 example のソース・ビルド方法・公開デモへのリンクもあります。
 
 ## 進め方
@@ -62,5 +46,3 @@
 - 3 本終えたら設計の話 → [実用パターン](../patterns/index.md)（コマンド・状態・エラーをどう形にするか）
 - 概念から知りたい → [概念の索引](../concepts/index.md)
 - 特定のことをしたい → [ガイド](../guides/index.md)
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->

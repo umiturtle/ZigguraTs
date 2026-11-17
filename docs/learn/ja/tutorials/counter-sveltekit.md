@@ -6,7 +6,7 @@
 
 これは [カウンターを作る](counter.md) の **`SvelteKit 3.1` 版**です。Zig 側のコードは
 元のチュートリアルと **1 文字も変わりません**。違うのは `web/` の中身だけで、そこに
-[`examples/frameworks/sveltekit/`](https://github.com/umiturtle/ZigguraTs/tree/main/examples/frameworks/sveltekit) の実物をそのまま使います。
+[`examples/frameworks/sveltekit/`](https://github.com/umiturtle/Z-Ts/tree/main/examples/frameworks/sveltekit) の実物をそのまま使います。
 [ライブラリを選び直す](frameworks.md) といつでも別の分岐へ移れます。
 
 <!-- framework-picker -->
@@ -62,7 +62,7 @@ ls build/index.html
 
 > [!NOTE]
 > 9 つの example は**同じ DOM・同じ CSS・同じ文言**で作られています。違うのはフレームワーク名と
-> バージョンだけなので、[公開デモ](https://umiturtle.github.io/ZigguraTs/examples/frameworks/sveltekit/index.html) を見比べれば「どれを選んでも同じアプリ」だと
+> バージョンだけなので、[公開デモ](https://umiturtle.github.io/Z-Ts/examples/frameworks/sveltekit/index.html) を見比べれば「どれを選んでも同じアプリ」だと
 > 確認できます。3 OS のスクリーンショット比較については
 > [`examples/frameworks/README.md`](../../../../examples/frameworks/README.md) を参照してください。
 
@@ -99,11 +99,7 @@ zts dev                 # http://127.0.0.1:5173
     <ul class="features">
 ```
 
-状態は `let count = 0` です。
-
-Svelte 5 の `let count = 0` / `$state(0)` は代入で直接 DOM を更新します。adapter-static のプリレンダーでは `0` が HTML に焼き付くので、クライアントの最初の `invoke` が実状態を作ります。
-
-カウンター本体は 3 OS で画素を一致させるため、あえて **ローカル状態だけ**
+状態は `let count = 0` です。カウンター本体は 3 OS で画素を一致させるため、あえて **ローカル状態だけ**
 で動かしています。その下の `.zigbar` パネルは逆で、**Zig が動いていないと絶対に埋まりません**
 （[付録](#付録-zig-が動いているかを画面で確かめる)）。次の章でここに ziggurats のコマンドを
 つなぎます。
@@ -143,30 +139,6 @@ import { invoke } from "@tauri-apps/api/core";
 async function inc() { count = await invoke("increment"); }
 ```
 
-`SvelteKit` のローカル状態と、Zig が持つカウンタは **別の状態** です
-（[付録](#付録-zig-が動いているかを画面で確かめる)）。`count = r.count` を `await` の後に 1 回。プリレンダー値との差が一瞬見えるので、`ZIG OFFLINE` の表示を消すのは seal が届いてからにしてください。
-
-ギャラリーの `zig_inc` を同じ状態に流し込むなら、こう書きます。
-
-```svelte
-import { invoke } from "@tauri-apps/api/core";
-import { onMount } from "svelte";
-
-let zigCount = $state(0);
-let seal = $state("—");
-
-onMount(() => {
-  const zig = window.__ZTS_ZIG__;   // プリレンダーでは触らない
-  if (zig && typeof zig.mount === "function") zig.mount();
-});
-
-async function zigInc() {
-  const r = await invoke<{ ok: boolean; count: number; seal: string }>("zig_inc");
-  zigCount = r.count;
-  seal = r.seal;
-}
-```
-
 これで「ボタン → `invoke("increment")` → Zig の関数 → 戻り値 → 画面」が 1 周します。
 `zts dev` のブラウザだけを見ていると `invoke` は届かないので、必ず `zts build` 後の
 実行ファイルで確かめてください。
@@ -200,11 +172,6 @@ seal は **Zig 側だけが持つ秘密**と Zig のカウンタから作る SHA
 できません。`＋` `−` はフレームワークのローカル状態ではなく **Zig が保持するカウンタ**を増減し、
 押すたびに seal が変わります。つまりこの 1 行が「裏で Zig が生きているか」の答えです。
 
-`onMount` または `browser` でガードします。`+page.svelte` のモジュールスコープはプリレンダー時にサーバーで評価されます。`svelte.config.js` は不要で adapter は Vite に渡します。
-
-> [!WARNING]
-> `SSR 中に `window.__ZTS_ZIG__` を読むと `ReferenceError` になります。`browser` ガードを外さないでください。`
-
 配線の実物は
 [`examples/gallery/src/web/zig-bridge.js`](../../../../examples/gallery/src/web/zig-bridge.js) と
 [`examples/gallery/src/main.zig`](../../../../examples/gallery/src/main.zig) にあります。ギャラリーは
@@ -221,11 +188,7 @@ seal は **Zig 側だけが持つ秘密**と Zig のカウンタから作る SHA
 | 素の JS 版（分岐の元） | [カウンターを作る](counter.md) |
 | 状態を増やす・失敗を返す | [Todo リストを作る](todo.md) |
 | 読み込み中 / 空 / エラーの画面 | [画面を作る](ui.md) |
-| `SvelteKit` 版の Todo | [Todo を SvelteKit で](todo-sveltekit.md) |
-| `SvelteKit` 版の画面 | [画面を SvelteKit で](ui-sveltekit.md) |
-| `SvelteKit` の実物ソース | [`examples/frameworks/sveltekit/`](https://github.com/umiturtle/ZigguraTs/tree/main/examples/frameworks/sveltekit) |
-| `SvelteKit` の公開デモ | [ブラウザで開く](https://umiturtle.github.io/ZigguraTs/examples/frameworks/sveltekit/index.html) |
+| `SvelteKit` の実物ソース | [`examples/frameworks/sveltekit/`](https://github.com/umiturtle/Z-Ts/tree/main/examples/frameworks/sveltekit) |
+| `SvelteKit` の公開デモ | [ブラウザで開く](https://umiturtle.github.io/Z-Ts/examples/frameworks/sveltekit/index.html) |
 | 9 つの example の比較 | [`examples/frameworks/README.md`](../../../../examples/frameworks/README.md) |
 | コマンドの引数・エラー・型生成 | [ガイド: コマンド](../guides/rpc.md) |
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->

@@ -6,7 +6,7 @@
 
 This is the **Astro 6.4** branch of [Build a counter](counter.md). The Zig side is
 **identical, character for character**; only `web/` changes, and it uses the real example from
-[`examples/frameworks/astro/`](https://github.com/umiturtle/ZigguraTs/tree/main/examples/frameworks/astro). [Pick another library](frameworks.md) at any time.
+[`examples/frameworks/astro/`](https://github.com/umiturtle/Z-Ts/tree/main/examples/frameworks/astro). [Pick another library](frameworks.md) at any time.
 
 <!-- framework-picker -->
 
@@ -61,7 +61,7 @@ ls dist/index.html
 
 > [!NOTE]
 > All nine examples render the **same DOM, CSS and copy**; only the framework name and version
-> differ. Compare the [live demo](https://umiturtle.github.io/ZigguraTs/examples/frameworks/astro/index.html) with another one to see that the app is the same. See
+> differ. Compare the [live demo](https://umiturtle.github.io/Z-Ts/examples/frameworks/astro/index.html) with another one to see that the app is the same. See
 > [`examples/frameworks/README.md`](../../../../examples/frameworks/README.en.md) for the 3-OS
 > screenshot comparison.
 
@@ -97,11 +97,7 @@ example). Static HTML with no islands plus a tiny `<script>`; ships no framework
     <ul class="features">
 ```
 
-State lives in Direct DOM updates (`data-zts`).
-
-There is no island: static HTML plus a tiny `<script>`. State lives in the DOM's `data-zts` attributes rather than a variable, and `textContent` is the only update mechanism.
-
-The counter deliberately uses **local state only** so the pixel
+State lives in Direct DOM updates (`data-zts`). The counter deliberately uses **local state only** so the pixel
 comparison across three OSes has no backend dependency. The `.zigbar` panel below it is the
 opposite: it **cannot be filled in unless Zig is running**
 ([appendix](#appendix-prove-zig-is-running-from-the-screen)). The next chapter connects ziggurats.
@@ -144,26 +140,6 @@ document.querySelector('[data-zts="inc"]').addEventListener("click", async () =>
 });
 ```
 
-The Astro state and the counter owned by Zig are **two different states**
-([appendix](#appendix-prove-zig-is-running-from-the-screen)). Set `value.textContent = String(r.count)` once after `await`. With no re-render, write order is exactly what the user sees. In a static build with no Zig host, do not call `invoke` and keep `ZIG OFFLINE`.
-
-To feed the gallery's `zig_inc` into that same state, write:
-
-```astro
-import { invoke } from "@tauri-apps/api/core";
-
-const value = document.querySelector('[data-zts="count"]');
-const seal = document.querySelector('[data-zts="zig-seal"]');
-const inc = document.querySelector('[data-zts="zig-inc"]');
-if (!value || !seal || !inc) throw new Error("counter markup missing");
-
-inc.addEventListener("click", async () => {
-  const r = await invoke<{ ok: boolean; count: number; seal: string }>("zig_inc");
-  value.textContent = String(r.count);   // Zig の戻り値だけを正にする
-  seal.textContent = r.seal;
-});
-```
-
 That closes the loop: button → `invoke("increment")` → Zig function → return value → screen.
 `invoke` does not reach anything in the browser served by `zts dev`, so always confirm with the
 executable produced by `zts build`.
@@ -197,11 +173,6 @@ JavaScript alone cannot manufacture the string. `+` / `-` change **the counter o
 the framework's local state, and every press produces a new seal. That single line is the answer to
 "is Zig actually alive back there?".
 
-Astro ships no framework JS by default. `<script>` is bundled at build time, and `window.__ZTS_ZIG__` exists only when the native host injects it at `DOCUMENT_START`.
-
-> [!WARNING]
-> `Without a null guard, `querySelector` throws a `TypeError` the moment the static HTML is opened alone. Always start with `if (!value) return;`.`
-
 The real wiring lives in
 [`examples/gallery/src/web/zig-bridge.js`](../../../../examples/gallery/src/web/zig-bridge.js) and
 [`examples/gallery/src/main.zig`](../../../../examples/gallery/src/main.zig). The gallery injects
@@ -218,11 +189,7 @@ own app, add those three commands to `rpc.Schema` and inject the same bridge. Ch
 | the plain-JS original | [Build a counter](counter.md) |
 | more state, returning failures | [Build a todo list](todo.md) |
 | loading / empty / error views | [Build the screen](ui.md) |
-| the Todo branch for Astro | [Todo with Astro](todo-astro.md) |
-| the screen branch for Astro | [Screen with Astro](ui-astro.md) |
-| the real Astro source | [`examples/frameworks/astro/`](https://github.com/umiturtle/ZigguraTs/tree/main/examples/frameworks/astro) |
-| the live Astro demo | [Open in a browser](https://umiturtle.github.io/ZigguraTs/examples/frameworks/astro/index.html) |
+| the real Astro source | [`examples/frameworks/astro/`](https://github.com/umiturtle/Z-Ts/tree/main/examples/frameworks/astro) |
+| the live Astro demo | [Open in a browser](https://umiturtle.github.io/Z-Ts/examples/frameworks/astro/index.html) |
 | all nine examples compared | [`examples/frameworks/README.en.md`](../../../../examples/frameworks/README.en.md) |
 | arguments, errors, generated types | [Guide: commands](../guides/rpc.md) |
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->

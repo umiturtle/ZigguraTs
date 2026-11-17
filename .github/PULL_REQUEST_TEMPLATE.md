@@ -5,17 +5,18 @@
 ## Branch model
 
 The branch names are validated by `bash scripts/gitflow.sh --check <name>` and CI runs its
-`--self-test` on every push. Pick the base that matches the source branch:
+`--self-test` and `--check-pr-base` tables on every push and PR. Pick the base that matches the
+source branch:
 
 | Source | PR base |
 |---|---|
-| `feature/<slug>` | `develop` |
+| `feature/<slug>` (including the one an agent branches from its `arena/<session>` ref) | `develop` |
 | `release/<x.y.z>` | `main` (then back-merge to `develop`) |
 | `hotfix/<x.y.z>` | `main` (then back-merge to `develop`) |
-| `arena/<agent>` | the base the repository owner chose — Arena agents cannot create branches |
+| `arena/<agent>` | not a PR head — branch `feature/<slug>` from it first |
 
 - [ ] Source branch name is valid (`bash scripts/gitflow.sh --check <name>`)
-- [ ] PR base matches the table above
+- [ ] PR base matches the table above (`bash scripts/gitflow.sh --check-pr-base <base> <head>`)
 - [ ] No `AGENTS.md` / `docs/roadmap/milestones.md` checkbox was edited
 
 ## Checks

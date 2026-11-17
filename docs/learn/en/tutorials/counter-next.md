@@ -6,7 +6,7 @@
 
 This is the **Next.js 16.4** branch of [Build a counter](counter.md). The Zig side is
 **identical, character for character**; only `web/` changes, and it uses the real example from
-[`examples/frameworks/next/`](https://github.com/umiturtle/ZigguraTs/tree/main/examples/frameworks/next). [Pick another library](frameworks.md) at any time.
+[`examples/frameworks/next/`](https://github.com/umiturtle/Z-Ts/tree/main/examples/frameworks/next). [Pick another library](frameworks.md) at any time.
 
 <!-- framework-picker -->
 
@@ -61,7 +61,7 @@ ls out/index.html
 
 > [!NOTE]
 > All nine examples render the **same DOM, CSS and copy**; only the framework name and version
-> differ. Compare the [live demo](https://umiturtle.github.io/ZigguraTs/examples/frameworks/next/index.html) with another one to see that the app is the same. See
+> differ. Compare the [live demo](https://umiturtle.github.io/Z-Ts/examples/frameworks/next/index.html) with another one to see that the app is the same. See
 > [`examples/frameworks/README.md`](../../../../examples/frameworks/README.en.md) for the 3-OS
 > screenshot comparison.
 
@@ -97,11 +97,7 @@ example). Static export via `output: 'export'`; a stateful page needs `'use clie
         <ul className="features">
 ```
 
-State lives in `useState(0)` (with `'use client'`).
-
-A stateful App Router page needs `'use client'`. `useState(0)` exists only in client components; putting it in a server component fails the build.
-
-The counter deliberately uses **local state only** so the pixel
+State lives in `useState(0)` (with `'use client'`). The counter deliberately uses **local state only** so the pixel
 comparison across three OSes has no backend dependency. The `.zigbar` panel below it is the
 opposite: it **cannot be filled in unless Zig is running**
 ([appendix](#appendix-prove-zig-is-running-from-the-screen)). The next chapter connects ziggurats.
@@ -141,25 +137,6 @@ import { invoke } from "@tauri-apps/api/core";
 async function inc() { setCount(await invoke("increment")); }
 ```
 
-The Next.js state and the counter owned by Zig are **two different states**
-([appendix](#appendix-prove-zig-is-running-from-the-screen)). With `output: 'export'` there is no Zig host, so `invoke` only reaches a backend from the `zts build` binary. Call `setCount` once after `await`, and never on rejection.
-
-To feed the gallery's `zig_inc` into that same state, write:
-
-```tsx
-"use client";
-import { invoke } from "@tauri-apps/api/core";
-
-const [zigCount, setZigCount] = useState(0);
-const [seal, setSeal] = useState("—");
-
-async function zigInc() {
-  const r = await invoke<{ ok: boolean; count: number; seal: string }>("zig_inc");
-  setZigCount(r.count);
-  setSeal(r.seal);
-}
-```
-
 That closes the loop: button → `invoke("increment")` → Zig function → return value → screen.
 `invoke` does not reach anything in the browser served by `zts dev`, so always confirm with the
 executable produced by `zts build`.
@@ -193,11 +170,6 @@ JavaScript alone cannot manufacture the string. `+` / `-` change **the counter o
 the framework's local state, and every press produces a new seal. That single line is the answer to
 "is Zig actually alive back there?".
 
-Reference `window.__ZTS_ZIG__` only inside `useEffect`. Even with `'use client'`, module scope is evaluated during prerendering, so a top-level `window` is unsafe.
-
-> [!WARNING]
-> `Never try to bake `invoke` results into the static export — no Zig exists at build time. The initial state must always be "loading".`
-
 The real wiring lives in
 [`examples/gallery/src/web/zig-bridge.js`](../../../../examples/gallery/src/web/zig-bridge.js) and
 [`examples/gallery/src/main.zig`](../../../../examples/gallery/src/main.zig). The gallery injects
@@ -214,11 +186,7 @@ own app, add those three commands to `rpc.Schema` and inject the same bridge. Ch
 | the plain-JS original | [Build a counter](counter.md) |
 | more state, returning failures | [Build a todo list](todo.md) |
 | loading / empty / error views | [Build the screen](ui.md) |
-| the Todo branch for Next.js | [Todo with Next.js](todo-next.md) |
-| the screen branch for Next.js | [Screen with Next.js](ui-next.md) |
-| the real Next.js source | [`examples/frameworks/next/`](https://github.com/umiturtle/ZigguraTs/tree/main/examples/frameworks/next) |
-| the live Next.js demo | [Open in a browser](https://umiturtle.github.io/ZigguraTs/examples/frameworks/next/index.html) |
+| the real Next.js source | [`examples/frameworks/next/`](https://github.com/umiturtle/Z-Ts/tree/main/examples/frameworks/next) |
+| the live Next.js demo | [Open in a browser](https://umiturtle.github.io/Z-Ts/examples/frameworks/next/index.html) |
 | all nine examples compared | [`examples/frameworks/README.en.md`](../../../../examples/frameworks/README.en.md) |
 | arguments, errors, generated types | [Guide: commands](../guides/rpc.md) |
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->

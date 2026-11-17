@@ -6,7 +6,7 @@
 
 これは [カウンターを作る](counter.md) の **`SolidStart 2.1` 版**です。Zig 側のコードは
 元のチュートリアルと **1 文字も変わりません**。違うのは `web/` の中身だけで、そこに
-[`examples/frameworks/solidstart/`](https://github.com/umiturtle/ZigguraTs/tree/main/examples/frameworks/solidstart) の実物をそのまま使います。
+[`examples/frameworks/solidstart/`](https://github.com/umiturtle/Z-Ts/tree/main/examples/frameworks/solidstart) の実物をそのまま使います。
 [ライブラリを選び直す](frameworks.md) といつでも別の分岐へ移れます。
 
 <!-- framework-picker -->
@@ -62,7 +62,7 @@ ls dist/client/index.html
 
 > [!NOTE]
 > 9 つの example は**同じ DOM・同じ CSS・同じ文言**で作られています。違うのはフレームワーク名と
-> バージョンだけなので、[公開デモ](https://umiturtle.github.io/ZigguraTs/examples/frameworks/solidstart/index.html) を見比べれば「どれを選んでも同じアプリ」だと
+> バージョンだけなので、[公開デモ](https://umiturtle.github.io/Z-Ts/examples/frameworks/solidstart/index.html) を見比べれば「どれを選んでも同じアプリ」だと
 > 確認できます。3 OS のスクリーンショット比較については
 > [`examples/frameworks/README.md`](../../../../examples/frameworks/README.md) を参照してください。
 
@@ -99,11 +99,7 @@ zts dev                 # http://127.0.0.1:5173
         <ul class="features">
 ```
 
-状態は `createSignal(0)` です。
-
-SPA モード（`ssr:false`）なのでサーバーレンダリングは走りませんが、`createSignal` の意味は Solid と同じです。`count()` で読み、`setCount` で書きます。ルートの `index.tsx` が本体です。
-
-カウンター本体は 3 OS で画素を一致させるため、あえて **ローカル状態だけ**
+状態は `createSignal(0)` です。カウンター本体は 3 OS で画素を一致させるため、あえて **ローカル状態だけ**
 で動かしています。その下の `.zigbar` パネルは逆で、**Zig が動いていないと絶対に埋まりません**
 （[付録](#付録-zig-が動いているかを画面で確かめる)）。次の章でここに ziggurats のコマンドを
 つなぎます。
@@ -143,24 +139,6 @@ import { invoke } from "@tauri-apps/api/core";
 async function inc() { setCount(await invoke("increment")); }
 ```
 
-`SolidStart` のローカル状態と、Zig が持つカウンタは **別の状態** です
-（[付録](#付録-zig-が動いているかを画面で確かめる)）。`setCount(r.count)` は `await` の後に 1 回。SPA でもプリレンダーされた HTML が残る設定にした場合は、Zig の値が届くまで `ZIG OFFLINE` を出してください。
-
-ギャラリーの `zig_inc` を同じ状態に流し込むなら、こう書きます。
-
-```tsx
-import { invoke } from "@tauri-apps/api/core";
-
-const [zigCount, setZigCount] = createSignal(0);
-const [seal, setSeal] = createSignal("—");
-
-async function zigInc() {
-  const r = await invoke<{ ok: boolean; count: number; seal: string }>("zig_inc");
-  setZigCount(r.count);   // Zig の戻り値だけを正にする
-  setSeal(r.seal);
-}
-```
-
 これで「ボタン → `invoke("increment")` → Zig の関数 → 戻り値 → 画面」が 1 周します。
 `zts dev` のブラウザだけを見ていると `invoke` は届かないので、必ず `zts build` 後の
 実行ファイルで確かめてください。
@@ -194,11 +172,6 @@ seal は **Zig 側だけが持つ秘密**と Zig のカウンタから作る SHA
 できません。`＋` `−` はフレームワークのローカル状態ではなく **Zig が保持するカウンタ**を増減し、
 押すたびに seal が変わります。つまりこの 1 行が「裏で Zig が生きているか」の答えです。
 
-`onMount` で `window.__ZTS_ZIG__.mount()` を呼びます。`ssr:false` でもビルド時にモジュールが評価されることがあるので、トップレベルの `window` は避けます。
-
-> [!WARNING]
-> ``ssr:false` を外すと `window` 参照がビルド時に落ちます。SPA 設定を変えたら `onMount` ガードを必ず見直してください。`
-
 配線の実物は
 [`examples/gallery/src/web/zig-bridge.js`](../../../../examples/gallery/src/web/zig-bridge.js) と
 [`examples/gallery/src/main.zig`](../../../../examples/gallery/src/main.zig) にあります。ギャラリーは
@@ -215,11 +188,7 @@ seal は **Zig 側だけが持つ秘密**と Zig のカウンタから作る SHA
 | 素の JS 版（分岐の元） | [カウンターを作る](counter.md) |
 | 状態を増やす・失敗を返す | [Todo リストを作る](todo.md) |
 | 読み込み中 / 空 / エラーの画面 | [画面を作る](ui.md) |
-| `SolidStart` 版の Todo | [Todo を SolidStart で](todo-solidstart.md) |
-| `SolidStart` 版の画面 | [画面を SolidStart で](ui-solidstart.md) |
-| `SolidStart` の実物ソース | [`examples/frameworks/solidstart/`](https://github.com/umiturtle/ZigguraTs/tree/main/examples/frameworks/solidstart) |
-| `SolidStart` の公開デモ | [ブラウザで開く](https://umiturtle.github.io/ZigguraTs/examples/frameworks/solidstart/index.html) |
+| `SolidStart` の実物ソース | [`examples/frameworks/solidstart/`](https://github.com/umiturtle/Z-Ts/tree/main/examples/frameworks/solidstart) |
+| `SolidStart` の公開デモ | [ブラウザで開く](https://umiturtle.github.io/Z-Ts/examples/frameworks/solidstart/index.html) |
 | 9 つの example の比較 | [`examples/frameworks/README.md`](../../../../examples/frameworks/README.md) |
 | コマンドの引数・エラー・型生成 | [ガイド: コマンド](../guides/rpc.md) |
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->

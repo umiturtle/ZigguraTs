@@ -12,7 +12,6 @@
 | やりたいこと | ページ | 何分 |
 |---|---|---|
 | `zts` を手元に用意したい | [インストール](install.md) | 5 |
-| 既存の Zig プロジェクトから依存として使いたい | [ライブラリとして使う](library.md) | 5 |
 | ボタンから Zig の関数を呼びたい | [コマンド（RPC）](rpc.md) | 10 |
 | ウィンドウ・ファイル・メニューを使いたい | [プラグイン](plugins.md) | 8 |
 | サーバなしで動くサイトを出したい | [静的サイト](static-site.md) | 8 |
@@ -42,5 +41,3 @@ ziggurats 自体の設計（なぜこの構成なのか、どのマイルスト�
 - 全体像から → [概念の索引](../concepts/index.md)
 - 用語 → [用語集](../../../glossary.md)
 - リポジトリの操作（ビルド・CI・テスト） → [`docs/contributing/README.md`](../../../contributing/README.md)
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->

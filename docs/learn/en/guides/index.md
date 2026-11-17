@@ -12,7 +12,6 @@ already have something working.
 | Job | Page | Minutes |
 |---|---|---|
 | get `zts` on this machine | [Install](install.md) | 5 |
-| add it to an existing Zig project | [Use it as a library](library.md) | 5 |
 | call a Zig function from a button | [Commands (RPC)](rpc.md) | 10 |
 | use windows, files, menus | [Plugins](plugins.md) | 8 |
 | ship a site with no server | [Static sites](static-site.md) | 8 |
@@ -43,5 +42,3 @@ published site folds them into a single "internals" entry.
 - Terminology → [Glossary](../../../glossary.md)
 - Working on the repository (builds, CI, tests) →
   [`docs/contributing/README.md`](../../../contributing/README.md)
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->

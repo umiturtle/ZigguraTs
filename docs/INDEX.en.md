@@ -3,7 +3,7 @@
 > **Audience**: anyone deciding which page to read next, or looking a name up.
 > **Time**: 30 seconds as a table of contents.
 
-This is the map of the published site (<https://umiturtle.github.io/ZigguraTs/>), in **the same order as
+This is the map of the published site (<https://umiturtle.github.io/Z-Ts/>), in **the same order as
 the sidebar**. Press `/` for full-text search; the `日本語 / English` control in the top right
 switches language on every reader page, including this one.
 
@@ -100,7 +100,6 @@ pair, so a page added in one language fails CI.
 |---|---|
 | [Guides](learn/en/guides/index.md) | The job-to-page index. You do not have to read all of it |
 | [Get `zts`](learn/en/guides/install.md) | Release binaries, `PATH`, `ZTS_ZIG`, building from source |
-| [Use it as a library](learn/en/guides/library.md) | Import `zts_*` modules with `b.dependency("z_ts", …)` |
 | [Write a command](learn/en/guides/rpc.md) | `zts_rpc`: command → `Schema` → `bind` → `dispatch` → TypeScript generation |
 | [Standard Tauri plugins](learn/en/guides/plugins.md) | window / event / path / fs / dialog / clipboard / menu / tray and capabilities |
 | [Export a static site](learn/en/guides/static-site.md) | `exportStaticSite` and WASM; a `dist/` with no server |
@@ -115,7 +114,6 @@ pair, so a page added in one language fails CI.
 | [Glossary](glossary.en.md) | Definitions of the words used throughout the text |
 | [`zts` command reference](reference/cli.en.md) | Every command and every flag of the app author's CLI |
 | [Tauri v2 API map](reference/tauri-usage.en.md) | Upstream Rust/JS API, config and Capabilities, mapped |
-| [Scope of Tauri v2 compatibility](reference/compatibility.en.md) | Same call vs same behaviour: defaults, placeholders and unwired backends |
 | [Error index](reference/errors.html) | From an `error{…}` name back to where it is declared (generated) |
 
 ### API
@@ -154,6 +152,7 @@ All four are built on three OSes in CI, with their screenshots compared pixel by
 |---|---|
 | [Developing ziggurats](contributing/README.en.md) | Toolchain, `zig build` steps, change etiquette, CI |
 | [Branch model (gitflow)](contributing/gitflow.en.md) | `main` / `develop` / `feature` / `release` / `hotfix`, PR bases, cutting a release |
+| [Working with Jujutsu (jj, optional)](contributing/jujutsu.en.md) | Colocated setup, bookmarks vs git branches, and opening PRs |
 | [Repository map](contributing/repository-map.en.md) | Which file does what and how often it changes (the parallel-work unit) |
 | [Repository troubleshooting](contributing/troubleshooting.en.md) | Toolchain, cold builds, 0.17 API differences, Pages |
 | [Documentation sync ledger](contributing/doc-sync.en.md) | When each page was last rewritten and which version was verified |
@@ -199,5 +198,3 @@ when you are looking for why the implementation looks the way it does.
 > in `README.md`, and in both learning hubs. **Rule 14** keeps the full name `ziggurats` (lowercase)
 > consistent in prose while leaving the legacy name in repository URLs/paths and the `zts` /
 > `z_ts` / `zts_*` identifiers alone.
-
-<!-- zts-doc-meta: source-version=0.1.1 verified=2026-10-21 last-rewritten=2026-10-21 -->
