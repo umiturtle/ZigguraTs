@@ -45,6 +45,10 @@ pub const GtkWidget = opaque {};
 pub const GtkBox = opaque {};
 pub const GtkContainer = opaque {};
 pub const GtkWindow = opaque {};
+pub const GtkSettings = opaque {};
+pub const GdkCursor = opaque {};
+/// Integer-aligned rectangle region from cairo; used for GDK input shapes.
+pub const cairo_region_t = opaque {};
 pub const SoupMessageHeaders = opaque {};
 pub const JSCValue = opaque {};
 pub const WebKitWebContext = opaque {};
@@ -114,6 +118,10 @@ pub const GDK_HINT_MIN_SIZE: c_uint = 1 << 1;
 pub const GDK_HINT_MAX_SIZE: c_uint = 1 << 2;
 
 pub const GTK_WINDOW_TOPLEVEL: c_int = 0;
+/// `GdkCursorType` (`gdkcursor.h`): hide the pointer entirely.
+pub const GDK_BLANK_CURSOR: c_int = -2;
+/// `GdkSeatCapabilities` (`gdkseat.h`): confine the pointer, not the keyboard.
+pub const GDK_SEAT_CAPABILITY_POINTER: c_uint = 1 << 0;
 
 pub const SOUP_MESSAGE_HEADERS_RESPONSE: c_int = 1;
 
@@ -127,6 +135,12 @@ pub const GDestroyNotify = *const fn (data: gpointer) callconv(.c) void;
 pub const GSourceFunc = *const fn (user_data: gpointer) callconv(.c) gboolean;
 pub const GCallback = *const fn () callconv(.c) void;
 pub const GClosureNotify = ?*const fn (data: gpointer, closure: gpointer) callconv(.c) void;
+/// `GdkSeatGrabPrepareFunc` (`gdkseat.h`); GTK calls it once its grab window is ready.
+pub const GdkSeatGrabPrepareFunc = ?*const fn (
+    seat: *GdkSeat,
+    window: *GdkWindow,
+    user_data: gpointer,
+) callconv(.c) void;
 pub const GAsyncReadyCallback = ?*const fn (
     source_object: gpointer,
     res: *GAsyncResult,
@@ -167,6 +181,7 @@ pub extern "c" fn gdk_monitor_get_geometry(monitor: *GdkMonitor, geometry: *GdkR
 pub extern "c" fn webkit_settings_set_user_agent(settings: *WebKitSettings, user_agent: [*:0]const gchar) void;
 
 pub extern "c" fn g_object_new(object_type: GType, first_property_name: [*:0]const gchar, ...) *anyopaque;
+pub extern "c" fn g_object_set(object: *anyopaque, first_property_name: [*:0]const gchar, ...) void;
 pub extern "c" fn g_object_ref(object: *anyopaque) *anyopaque;
 pub extern "c" fn g_object_unref(object: *anyopaque) void;
 pub extern "c" fn g_signal_connect_data(
@@ -225,6 +240,11 @@ pub extern "c" fn gtk_window_fullscreen(window: *GtkWindow) void;
 pub extern "c" fn gtk_window_unfullscreen(window: *GtkWindow) void;
 pub extern "c" fn gtk_window_set_decorated(window: *GtkWindow, setting: gboolean) void;
 pub extern "c" fn gtk_window_set_keep_above(window: *GtkWindow, setting: gboolean) void;
+/// GDK/GTK3 has no per-window theme API; this process-wide `GtkSettings` property is the
+/// closest honest equivalent (`tao` uses the same property on Linux).
+pub extern "c" fn gtk_settings_get_default() ?*GtkSettings;
+/// `request_user_attention`: the WM maps every non-`none` level to the same urgency hint.
+pub extern "c" fn gtk_window_set_urgency_hint(window: *GtkWindow, setting: gboolean) void;
 /// `plugin:window` P1 #8 flags that GTK 3 supports natively.
 pub extern "c" fn gtk_window_set_skip_taskbar_hint(window: *GtkWindow, setting: gboolean) void;
 pub extern "c" fn gtk_window_set_keep_below(window: *GtkWindow, setting: gboolean) void;
@@ -245,6 +265,38 @@ pub extern "c" fn gdk_display_get_default() ?*GdkDisplay;
 pub extern "c" fn gdk_display_get_default_seat(display: *GdkDisplay) ?*GdkSeat;
 pub extern "c" fn gdk_seat_get_pointer(seat: *GdkSeat) ?*GdkDevice;
 pub extern "c" fn gdk_device_get_position(device: *GdkDevice, screen: ?*?*GdkScreen, x: ?*gint, y: ?*gint) gboolean;
+/// Renameable cursor lookup (`gdk_cursor_new_from_name`); the returned reference belongs to us.
+pub extern "c" fn gdk_cursor_new_from_name(display: *GdkDisplay, name: [*:0]const gchar) ?*GdkCursor;
+/// `GDK_BLANK_CURSOR` has no CSS name, so it must be built from the enum.
+pub extern "c" fn gdk_cursor_new_for_display(display: *GdkDisplay, cursor_type: c_int) ?*GdkCursor;
+pub extern "c" fn gdk_cursor_unref(cursor: *GdkCursor) void;
+/// The window takes its own reference; the caller still unrefs the cursor it created.
+pub extern "c" fn gdk_window_set_cursor(window: *GdkWindow, cursor: ?*GdkCursor) void;
+/// Root/screen origin of a `GdkWindow` (physical/device pixels on X11, the same space as
+/// `gdk_monitor_get_geometry`). Used to turn window-relative cursor positions into screen points.
+pub extern "c" fn gdk_window_get_origin(window: *GdkWindow, x: *gint, y: *gint) gint;
+/// Warps the pointer in screen (physical) coordinates. Compositors may refuse the request
+/// (Wayland), in which case GDK silently does nothing.
+pub extern "c" fn gdk_device_warp(device: *GdkDevice, screen: *GdkScreen, x: gint, y: gint) void;
+/// Confines the pointer to `window` while the grab is active (`cursor_grab`).
+pub extern "c" fn gdk_seat_grab(
+    seat: *GdkSeat,
+    window: *GdkWindow,
+    capabilities: c_uint,
+    owner_events: gboolean,
+    cursor: ?*GdkCursor,
+    event: ?*const anyopaque,
+    prepare_func: GdkSeatGrabPrepareFunc,
+    prepare_func_data: gpointer,
+) c_int;
+pub extern "c" fn gdk_seat_ungrab(seat: *GdkSeat) void;
+/// `ignore_cursor_events`: an empty input shape makes the window transparent to pointer input.
+pub extern "c" fn gdk_window_input_shape_combine_region(
+    window: *GdkWindow,
+    shape_region: ?*const cairo_region_t,
+    offset_x: gint,
+    offset_y: gint,
+) void;
 
 pub extern "c" fn gtk_container_add(container: *GtkContainer, widget: *GtkWidget) void;
 /// Overlay embedding: a child added to a `GtkBox` only fills it when it expands, and
@@ -254,6 +306,9 @@ pub extern "c" fn gtk_box_pack_start(box: *GtkBox, child: *GtkWidget, expand: gb
 pub extern "c" fn gtk_widget_set_hexpand(widget: *GtkWidget, expand: gboolean) void;
 pub extern "c" fn gtk_widget_set_vexpand(widget: *GtkWidget, expand: gboolean) void;
 pub extern "c" fn gtk_widget_get_parent(widget: *GtkWidget) ?*GtkWidget;
+/// The widget's `GdkWindow`, or `null` until the widget is realized.
+pub extern "c" fn gtk_widget_get_window(widget: *GtkWidget) ?*GdkWindow;
+pub extern "c" fn gtk_widget_get_realized(widget: *GtkWidget) gboolean;
 pub extern "c" fn gtk_widget_get_allocated_width(widget: *GtkWidget) gint;
 pub extern "c" fn gtk_widget_get_allocated_height(widget: *GtkWidget) gint;
 pub extern "c" fn gtk_widget_set_size_request(widget: *GtkWidget, width: gint, height: gint) void;
@@ -394,6 +449,10 @@ pub extern "c" fn webkit_uri_scheme_response_set_http_headers(
 pub const cairo_surface_t = opaque {};
 pub const cairo_status_t = c_int;
 pub const CAIRO_STATUS_SUCCESS: cairo_status_t = 0;
+
+/// An empty region, used to make a `GdkWindow` ignore pointer input.
+pub extern "c" fn cairo_region_create() ?*cairo_region_t;
+pub extern "c" fn cairo_region_destroy(region: *cairo_region_t) void;
 
 /// `WebKitSnapshotRegion` (`WebKitWebView.h`) — visible viewport vs. the whole document.
 pub const WebKitSnapshotRegion = c_int;
