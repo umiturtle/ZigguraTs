@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "verified": {
-    "date": "2026-11-17",
-    "commit": "f8f80c9",
+    "date": "2026-11-18",
+    "commit": "87d1a1f",
     "zts_version": "0.1.0",
     "zig_version": "0.17.0",
     "checks": [
@@ -30,7 +30,7 @@
       "scripts/check-docs.py",
       "scripts/gen-framework-tutorials.py"
     ],
-    "implementation_sha256": "c9c1620c26f72b2f726606f89193a63904b6dcab607bfd16a964aed50f17976e"
+    "implementation_sha256": "074e9540fb1b3b720245692b6a8446df7333624cc6716a1d8460f2594de89bac"
   },
   "pages": [
     {
@@ -58,8 +58,8 @@
       "ja": "docs/contributing/doc-sync.md",
       "en": "docs/contributing/doc-sync.en.md",
       "last_rewritten": "2026-10-21",
-      "ja_sha256": "91bee7ddcfcef7ec6a6eb6fd933e7384676939efe2fa9470c7849f24bd9011f0",
-      "en_sha256": "2b7a0c72690cc6daffee85a7bd558b2d520112c321437adc5f98a57c6510edb4"
+      "ja_sha256": "f51839575c28cd40c42b142fa1a59339a116ec9bc7035757f38b87b830dac1de",
+      "en_sha256": "231fb50d6b933f193872c6b0c86393f8e918b6628ce75a70ca43693156703189"
     },
     {
       "ja": "docs/contributing/gitflow.md",

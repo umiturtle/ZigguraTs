@@ -18,10 +18,10 @@ version was verified consistent with the implementation. The source of truth is
 ## Verified against
 
 - **Verified version**: `ziggurats 0.1.0` / Zig `0.17.0`
-- **Verified on**: `2026-11-17`
-- **Base commit**: `f8f80c9` (HEAD when verification began; the sha256 below identifies the implementation)
+- **Verified on**: `2026-11-18`
+- **Base commit**: `87d1a1f` (HEAD when verification began; the sha256 below identifies the implementation)
 - **Verified with**: `python3 scripts/check-docs.py` · `python3 scripts/gen-framework-tutorials.py --check` · `./zigw docs-check` · `./zigw quick-test` · `./zigw test -Mroot=src/cli/mod.zig` · `./zigw fmt --check src/ build.zig build.zig.zon`
-- **Implementation hash**: `c9c1620c26f72b2f726606f89193a63904b6dcab607bfd16a964aed50f17976e`
+- **Implementation hash**: `074e9540fb1b3b720245692b6a8446df7333624cc6716a1d8460f2594de89bac`
 
 Implementation files compared: `build.zig`, `build.zig.zon`, `src/cli/args.zig`, `src/cli/main.zig`, `src/cli/template.zig`, `src/docsite/main.zig`, `src/docsite/learn_path.zig`, `src/docsite/i18n.zig`, `src/docsite/site.zig`, `src/docsite/frameworks.zig`, `src/docsite/frameworks.json`, `src/docsite/assets/site.js`, `src/docsite/assets/site.css`, `scripts/check-docs.py`, `scripts/gen-framework-tutorials.py`
 
