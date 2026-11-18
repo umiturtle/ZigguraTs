@@ -90,6 +90,13 @@ const WinWindow = struct {
     min_size: ?types.LogicalSize = null,
     max_size: ?types.LogicalSize = null,
 
+    /// `ShowCursor` is a counter, so the backend must issue exactly one `TRUE`/`FALSE` per
+    /// transition. This records the last state it requested.
+    cursor_hidden: bool = false,
+    /// Cursor selected by `set_cursor_icon`. `WM_SETCURSOR` must restore it on every mouse move,
+    /// otherwise `DefWindowProcW` resets the cursor to the class `hCursor` (the arrow).
+    cursor: ?win32.HCURSOR = null,
+
     title: []u8 = &.{},
     dpi: u32 = util.base_dpi,
     saved_style: win32.DWORD = 0,
@@ -163,6 +170,237 @@ const CaptureSlot = struct {
 
 fn sameWindow(a: types.WindowId, b: types.WindowId) bool {
     return a.index == b.index and a.generation == b.generation;
+}
+
+// ---------------------------------------------------------------------------
+// Pure mappings (unit-tested on every host)
+// ---------------------------------------------------------------------------
+
+/// `tao::window::CursorIcon -> IDC_*` — the same table `tao/src/platform_impl/windows/util.rs`
+/// uses, so the three backends expose identical cursor semantics for the shared enum.
+fn cursorId(icon: foundation.CursorIcon) usize {
+    return switch (icon) {
+        .default, .arrow => win32.IDC_ARROW,
+        .crosshair => win32.IDC_CROSS,
+        .hand => win32.IDC_HAND,
+        .text => win32.IDC_IBEAM,
+        .move => win32.IDC_SIZEALL,
+        .wait => win32.IDC_WAIT,
+        .help => win32.IDC_HELP,
+        .progress => win32.IDC_APPSTARTING,
+        .not_allowed => win32.IDC_NO,
+        .resize_ew => win32.IDC_SIZEWE,
+        .resize_ns => win32.IDC_SIZENS,
+        // tao maps both grab variants to `IDC_SIZEALL`; Win32 has no open/closed-hand pair.
+        .grab, .grabbing => win32.IDC_SIZEALL,
+    };
+}
+
+/// `tao.window.ProgressStatus -> TBPFLAG`.
+fn progressFlag(status: foundation.ProgressStatus) i32 {
+    return switch (status) {
+        .none => win32.TBPF_NOPROGRESS,
+        .normal => win32.TBPF_NORMAL,
+        .indeterminate => win32.TBPF_INDETERMINATE,
+        .paused => win32.TBPF_PAUSED,
+        .@"error" => win32.TBPF_ERROR,
+    };
+}
+
+/// DWM system backdrop type for an effect; `null` means "use the legacy accent policy" (blur).
+fn backdropType(effect: foundation.Effect) ?i32 {
+    return switch (effect) {
+        .blur => null,
+        .none => win32.DWMSBT_NONE,
+        .mica => win32.DWMSBT_MAINWINDOW,
+        .acrylic => win32.DWMSBT_TRANSIENTWINDOW,
+        .tabbed => win32.DWMSBT_TABBEDWINDOW,
+    };
+}
+
+/// `.system` follows the per-user `AppsUseLightTheme` preference; the other two are explicit.
+fn themeIsDark(theme: foundation.Theme) bool {
+    return switch (theme) {
+        .dark => true,
+        .light => false,
+        .system => systemPrefersDark(),
+    };
+}
+
+fn systemPrefersDark() bool {
+    if (comptime builtin.os.tag != .windows) {
+        // Deterministic on non-Windows hosts so the pure `themeIsDark` test is host-independent.
+        return false;
+    } else {
+        return systemPrefersDarkWindows();
+    }
+}
+
+/// Reads `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme`.
+/// Anything unexpected (missing value, wrong type) falls back to "light", matching a fresh profile.
+fn systemPrefersDarkWindows() bool {
+    const sub_key = std.unicode.utf8ToUtf16LeStringLiteral("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize");
+    const value_name = std.unicode.utf8ToUtf16LeStringLiteral("AppsUseLightTheme");
+
+    var key: ?win32.HKEY = null;
+    if (win32.RegOpenKeyExW(win32.HKEY_CURRENT_USER, sub_key, 0, win32.KEY_QUERY_VALUE, &key) != win32.ERROR_SUCCESS) return false;
+    defer _ = win32.RegCloseKey(key.?);
+
+    var value: u32 = 1;
+    var size: u32 = @sizeOf(u32);
+    var kind: u32 = 0;
+    if (win32.RegQueryValueExW(key.?, value_name, null, &kind, @ptrCast(&value), &size) != win32.ERROR_SUCCESS) return false;
+    if (kind != win32.REG_DWORD) return false;
+    return value == 0;
+}
+
+/// Taskbar overlay label: `1..=99` stays decimal, `100+` collapses to `99+` (the overlay is
+/// 16×16 px; three glyphs is the legibility limit). `0` is handled by the caller as "clear".
+fn badgeLabel(count: u32, buf: *[4]u8) []const u8 {
+    if (count >= 100) {
+        buf[0] = '9';
+        buf[1] = '9';
+        buf[2] = '+';
+        return buf[0..3];
+    }
+    return std.fmt.bufPrint(buf, "{d}", .{count}) catch buf[0..0];
+}
+
+/// Creates a fresh `ITaskbarList3` (COM objects are cheap and never outlive the call, so the
+/// backend does not keep a pointer that could go stale across session changes).
+fn taskbarList() ?*win32.ITaskbarList3 {
+    var raw: ?*anyopaque = null;
+    if (com.failed(win32.CoCreateInstance(
+        &win32.CLSID_TaskbarList,
+        null,
+        win32.CLSCTX_SERVER,
+        &win32.IID_ITaskbarList3,
+        &raw,
+    ))) return null;
+    const list: *win32.ITaskbarList3 = @ptrCast(@alignCast(raw orelse return null));
+    if (com.failed(list.vtable.HrInit(list))) {
+        _ = list.vtable.Release(list);
+        return null;
+    }
+    return list;
+}
+
+/// `SetWindowCompositionAttribute` is exported by `user32.dll` but not declared by the SDK's
+/// import library for every toolchain, so it is resolved by name. `null` = unsupported build.
+fn setWindowCompositionAttribute() ?win32.SetWindowCompositionAttributeFn {
+    const module = win32.GetModuleHandleW(std.unicode.utf8ToUtf16LeStringLiteral("user32.dll")) orelse return null;
+    const raw = win32.GetProcAddress(module, "SetWindowCompositionAttribute") orelse return null;
+    return @ptrFromInt(@intFromPtr(raw));
+}
+
+/// Renders `count` (1..=99, clamped to `99+`) into a small RGBA icon for the taskbar overlay.
+///
+/// A plain GDI `DrawTextW` over a 32-bpp DIB is enough: the circle is painted directly in the
+/// pixel buffer, the text is drawn on top, and the alpha byte (which GDI ignores) is derived from
+/// the colour content afterwards so the corners stay fully transparent.
+fn createBadgeIcon(count: u32) ?win32.HICON {
+    const raw_size = win32.GetSystemMetrics(win32.SM_CXSMICON);
+    const size: i32 = if (raw_size < 16 or raw_size > 64) 16 else raw_size;
+
+    var info = win32.BITMAPINFO{
+        .bmiHeader = .{
+            .biSize = @sizeOf(win32.BITMAPINFOHEADER),
+            .biWidth = size,
+            .biHeight = -size, // top-down: row 0 is the top row
+            .biPlanes = 1,
+            .biBitCount = 32,
+            .biCompression = win32.BI_RGB,
+        },
+    };
+    var raw_bits: ?*anyopaque = null;
+    const color = win32.CreateDIBSection(null, &info, win32.DIB_RGB_COLORS, &raw_bits, null, 0) orelse return null;
+    defer _ = win32.DeleteObject(color);
+
+    const bits: [*]u8 = @ptrCast(raw_bits orelse return null);
+    const pixel_count: usize = @intCast(size * size);
+    const pixels = bits[0 .. pixel_count * 4];
+
+    const radius = @divTrunc(size, 2) - 1;
+    const center = @divTrunc(size, 2);
+    var y: i32 = 0;
+    while (y < size) : (y += 1) {
+        var x: i32 = 0;
+        while (x < size) : (x += 1) {
+            const dx = x - center;
+            const dy = y - center;
+            const idx: usize = @intCast((y * size + x) * 4);
+            if (dx * dx + dy * dy <= radius * radius) {
+                // Opaque red badge: BGRA, B=0x1E G=0x26 R=0xD9.
+                pixels[idx] = 0x1E;
+                pixels[idx + 1] = 0x26;
+                pixels[idx + 2] = 0xD9;
+                pixels[idx + 3] = 0xFF;
+            } else {
+                pixels[idx] = 0;
+                pixels[idx + 1] = 0;
+                pixels[idx + 2] = 0;
+                pixels[idx + 3] = 0;
+            }
+        }
+    }
+
+    var label_buf: [4]u8 = undefined;
+    const label = badgeLabel(count, &label_buf);
+    var wide: [4]u16 = undefined;
+    const wide_len = std.unicode.utf8ToUtf16Le(wide[0..], label) catch return null;
+
+    const dc = win32.CreateCompatibleDC(null) orelse return null;
+    defer _ = win32.DeleteDC(dc);
+    const previous_bitmap = win32.SelectObject(dc, color);
+    defer _ = win32.SelectObject(dc, previous_bitmap);
+
+    const font = win32.CreateFontW(
+        -@divTrunc(size * 3, 4),
+        0,
+        0,
+        0,
+        win32.FW_BOLD,
+        0,
+        0,
+        0,
+        win32.DEFAULT_CHARSET,
+        0,
+        0,
+        win32.CLEARTYPE_QUALITY,
+        win32.DEFAULT_PITCH,
+        std.unicode.utf8ToUtf16LeStringLiteral("Segoe UI"),
+    );
+    if (font) |f| {
+        const previous_font = win32.SelectObject(dc, f);
+        defer {
+            _ = win32.SelectObject(dc, previous_font);
+            _ = win32.DeleteObject(f);
+        }
+        _ = win32.SetBkMode(dc, win32.TRANSPARENT);
+        _ = win32.SetTextColor(dc, 0x00FF_FFFF);
+        var rect = win32.RECT{ .left = 0, .top = 0, .right = size, .bottom = size };
+        _ = win32.DrawTextW(
+            dc,
+            wide[0..wide_len].ptr,
+            @intCast(wide_len),
+            &rect,
+            win32.DT_CENTER | win32.DT_VCENTER | win32.DT_SINGLELINE,
+        );
+    }
+
+    // GDI leaves alpha untouched; make every painted pixel opaque and the corners transparent.
+    var i: usize = 0;
+    while (i < pixels.len) : (i += 4) {
+        pixels[i + 3] = if ((pixels[i] | pixels[i + 1] | pixels[i + 2]) != 0) 0xFF else 0;
+    }
+
+    // Monochrome AND mask, all zero = "use the colour bitmap".
+    var mask_bits: [512]u8 = @splat(0);
+    const mask = win32.CreateBitmap(size, size, 1, 1, @ptrCast(&mask_bits)) orelse return null;
+    defer _ = win32.DeleteObject(mask);
+
+    const icon_info = win32.ICONINFO{ .fIcon = win32.TRUE, .hbmMask = mask, .hbmColor = color };
+    return win32.CreateIconIndirect(&icon_info);
 }
 
 const HandlerKind = enum(u32) { environment_ready, controller_ready, web_message, web_resource, window_close, capture_complete, noop };
@@ -791,14 +1029,39 @@ pub const WindowsWebView2Backend = struct {
 
     /// `ICoreWebView2Controller2::put_DefaultBackgroundColor` — transparency & solid backgrounds.
     fn applyBackground(self: *WindowsWebView2Backend, w: *WinWindow) void {
+        if (w.transparent) {
+            self.setDefaultBackground(w, com.transparent);
+        } else if (w.extras.bg_set) {
+            self.setDefaultBackground(w, .{
+                .A = w.extras.bg_a,
+                .R = w.extras.bg_r,
+                .G = w.extras.bg_g,
+                .B = w.extras.bg_b,
+            });
+        } else {
+            self.setDefaultBackground(w, .{});
+        }
+    }
+
+    fn applyBackgroundColor(
+        self: *WindowsWebView2Backend,
+        w: *WinWindow,
+        r: u8,
+        g: u8,
+        b: u8,
+        a: u8,
+    ) void {
+        self.setDefaultBackground(w, .{ .A = a, .R = r, .G = g, .B = b });
+    }
+
+    fn setDefaultBackground(self: *WindowsWebView2Backend, w: *WinWindow, color: com.Color) void {
+        _ = self;
         const c = w.controller orelse return;
         var raw: ?*anyopaque = null;
         if (com.failed(c.vtable.QueryInterface(c, &com.IID_ICoreWebView2Controller2, &raw))) return;
         const c2: *com.ICoreWebView2Controller2 = @ptrCast(@alignCast(raw.?));
         defer _ = c2.vtable.Release(c2);
-        const color: com.Color = if (w.transparent) com.transparent else .{};
         _ = c2.vtable.put_DefaultBackgroundColor(c2, color);
-        _ = self;
     }
 
     fn configureWebView(self: *WindowsWebView2Backend, w: *WinWindow) void {
@@ -1354,8 +1617,12 @@ pub const WindowsWebView2Backend = struct {
 
         w.hwnd = hwnd;
         w.saved_style = style;
+        w.cursor = win32.LoadCursorW(null, win32.IDC_ARROW);
         const hwnd_dpi = win32.GetDpiForWindow(hwnd);
         w.dpi = if (hwnd_dpi == 0) util.base_dpi else hwnd_dpi;
+        // Paint the title bar with the requested theme before `ShowWindow`, so a dark window does
+        // not flash a light frame on first paint.
+        w.dark = themeIsDark(cfg.theme);
         self.applyDarkMode(w);
         if (w.always_on_top) {
             _ = win32.SetWindowPos(hwnd, win32.HWND_TOPMOST, 0, 0, 0, 0, win32.SWP_NOMOVE | win32.SWP_NOSIZE | win32.SWP_NOACTIVATE);
@@ -1470,6 +1737,13 @@ pub const WindowsWebView2Backend = struct {
     fn finalizeWindow(self: *WindowsWebView2Backend, w: *WinWindow) void {
         if (w.finalized) return;
         w.finalized = true;
+
+        // Undo process-wide state this window installed, or it outlives the HWND.
+        if (w.extras.cursor_grab) _ = win32.ClipCursor(null);
+        if (w.cursor_hidden) {
+            _ = win32.ShowCursor(win32.TRUE);
+            w.cursor_hidden = false;
+        }
 
         _ = self.pending.cancelForWindow(self.allocator, w.id, PendingToken.cancel);
         self.dropCaptures(w.id);
@@ -1838,6 +2112,8 @@ pub const WindowsWebView2Backend = struct {
     pub fn applyWindowCreationOptions(self: *WindowsWebView2Backend, win_id: types.WindowId, cfg: types.WindowConfig) types.WebviewError!void {
         const w = try self.requireWindow(win_id);
         w.creation = types.creationOptions(cfg);
+        // `theme: system|dark|light` from `tauri.conf.json` / `WindowSpec`.
+        try self.setDarkMode(win_id, themeIsDark(cfg.theme));
         if (cfg.hidden_title) {
             const empty = win32.toWide(self.allocator, "") catch return error.OutOfMemory;
             defer self.allocator.free(empty);
@@ -1845,17 +2121,50 @@ pub const WindowsWebView2Backend = struct {
         }
     }
 
-    /// apply the Win32 flags we can honour and keep the full snapshot. Unsupported
-    /// OS-specific flags stay recorded (no silent "success" without a state change).
+    /// Applies every `WindowExtrasSnapshot` field to the HWND / WebView2 controller. Setters that
+    /// do not exist on Win32 are documented inline instead of silently succeeding.
     pub fn applyWindowExtras(self: *WindowsWebView2Backend, win_id: types.WindowId, extras: types.WindowExtrasSnapshot) types.WebviewError!void {
         const w = try self.requireWindow(win_id);
+        // Keep the previous snapshot: cursor position, flashes and DWM transitions are events,
+        // not persistent state, so re-applying them on every unrelated setter would be wrong.
+        const previous = w.extras;
         w.extras = extras;
+
+        // -- theme: `system` reads the per-user AppsUseLightTheme preference --
+        const wants_dark = themeIsDark(extras.theme);
+        if (wants_dark != w.dark) try self.setDarkMode(win_id, wants_dark);
+
         _ = win32.EnableWindow(w.hwnd, if (extras.enabled) 1 else 0);
         _ = win32.SetWindowDisplayAffinity(w.hwnd, if (extras.content_protected) win32.WDA_EXCLUDEFROMCAPTURE else win32.WDA_NONE);
+
+        // -- taskbar: progress + numeric overlay badge (ITaskbarList3) --
+        if (extras.progress_status != previous.progress_status or extras.progress_value != previous.progress_value) {
+            self.applyProgress(w, extras.progress_status, extras.progress_value);
+        }
+        if (extras.badge_count != previous.badge_count) self.applyBadge(w, extras.badge_count);
+
+        // -- cursor --
+        if (extras.cursor_icon != previous.cursor_icon) self.applyCursorIcon(w, extras.cursor_icon);
+        if (extras.cursor_x != previous.cursor_x or extras.cursor_y != previous.cursor_y) {
+            self.applyCursorPosition(w, extras.cursor_x, extras.cursor_y);
+        }
+        if (extras.cursor_grab != previous.cursor_grab) self.applyCursorGrab(w, extras.cursor_grab);
+        if (extras.cursor_visible != previous.cursor_visible) self.setCursorHidden(w, !extras.cursor_visible);
+
+        // -- extended styles: skip_taskbar (TOOLWINDOW) + click-through (TRANSPARENT|LAYERED) --
         const style = win32.GetWindowLongPtrW(w.hwnd, win32.GWL_EXSTYLE);
-        const tool_bit: isize = @as(isize, win32.WS_EX_TOOLWINDOW);
-        const next_style = if (extras.skip_taskbar) style | tool_bit else style & ~tool_bit;
+        const tool_bit: isize = @intCast(win32.WS_EX_TOOLWINDOW);
+        var next_style = if (extras.skip_taskbar) style | tool_bit else style & ~tool_bit;
+        if (extras.ignore_cursor_events) {
+            // Exactly tao's `WindowFlags::IGNORE_CURSOR_EVENT` styles.
+            next_style |= @as(isize, win32.WS_EX_TRANSPARENT) | @as(isize, win32.WS_EX_LAYERED);
+        } else {
+            next_style &= ~@as(isize, win32.WS_EX_TRANSPARENT);
+            // Keep LAYERED for genuinely transparent windows; only drop it when we added it.
+            if (!w.transparent) next_style &= ~@as(isize, win32.WS_EX_LAYERED);
+        }
         _ = win32.SetWindowLongPtrW(w.hwnd, win32.GWL_EXSTYLE, next_style);
+
         if (extras.always_on_bottom) {
             _ = win32.SetWindowPos(
                 w.hwnd,
@@ -1867,6 +2176,167 @@ pub const WindowsWebView2Backend = struct {
                 win32.SWP_NOMOVE | win32.SWP_NOSIZE | win32.SWP_NOACTIVATE,
             );
         }
+
+        // -- attention / DWM look --
+        if (extras.user_attention != previous.user_attention) self.applyUserAttention(w, extras.user_attention);
+        if (extras.shadow != previous.shadow) self.applyShadow(w, extras.shadow);
+        if (extras.effect != previous.effect) self.applyEffect(w, extras.effect);
+
+        // Win32 has no public per-window virtual-desktop API. `IVirtualDesktopManager` can move a
+        // window onto an existing desktop but cannot pin it to *all* desktops, and tao marks the
+        // setter as unsupported on Windows too.
+        _ = extras.visible_on_all_workspaces;
+
+        // -- WebView2 background colour (ICoreWebView2Controller2) --
+        if (extras.bg_set) {
+            self.applyBackgroundColor(w, extras.bg_r, extras.bg_g, extras.bg_b, extras.bg_a);
+        } else {
+            self.applyBackground(w);
+        }
+    }
+
+    // -- WindowExtras helpers ---------------------------------------------
+
+    fn applyProgress(
+        self: *WindowsWebView2Backend,
+        w: *WinWindow,
+        status: foundation.ProgressStatus,
+        value: ?u8,
+    ) void {
+        _ = self;
+        const list = taskbarList() orelse return;
+        defer _ = list.vtable.Release(list);
+
+        _ = list.vtable.SetProgressState(list, w.hwnd, progressFlag(status));
+        if (status == .none) return;
+        if (value) |percent| {
+            const completed: u64 = @min(@as(u32, percent), 100);
+            _ = list.vtable.SetProgressValue(list, w.hwnd, completed, 100);
+        }
+    }
+
+    /// `ITaskbarList3::SetOverlayIcon` with a lazily rasterised numeric icon. `null` (or `0`)
+    /// removes the overlay, matching Tauri's documented "0 or None clears the badge".
+    fn applyBadge(self: *WindowsWebView2Backend, w: *WinWindow, count: ?u32) void {
+        _ = self;
+        const list = taskbarList() orelse return;
+        defer _ = list.vtable.Release(list);
+
+        const n = count orelse {
+            _ = list.vtable.SetOverlayIcon(list, w.hwnd, null, null);
+            return;
+        };
+        if (n == 0) {
+            _ = list.vtable.SetOverlayIcon(list, w.hwnd, null, null);
+            return;
+        }
+        const icon = createBadgeIcon(n) orelse return;
+        defer _ = win32.DestroyIcon(icon);
+        _ = list.vtable.SetOverlayIcon(list, w.hwnd, icon, null);
+    }
+
+    fn applyCursorIcon(self: *WindowsWebView2Backend, w: *WinWindow, icon: foundation.CursorIcon) void {
+        _ = self;
+        const cursor = win32.LoadCursorW(null, cursorId(icon)) orelse return;
+        // Remember it for `WM_SETCURSOR`; `SetCursor` alone is undone by the next mouse move.
+        w.cursor = cursor;
+        _ = win32.SetCursor(cursor);
+    }
+
+    /// `cursor_x` / `cursor_y` are physical pixels relative to the window's client area; Win32's
+    /// `SetCursorPos` is screen-relative, so `ClientToScreen` bridges the two.
+    fn applyCursorPosition(self: *WindowsWebView2Backend, w: *WinWindow, x: i32, y: i32) void {
+        _ = self;
+        var point = win32.POINT{ .x = x, .y = y };
+        if (win32.ClientToScreen(w.hwnd, &point) == 0) return;
+        _ = win32.SetCursorPos(point.x, point.y);
+    }
+
+    fn applyCursorGrab(self: *WindowsWebView2Backend, w: *WinWindow, grab: bool) void {
+        _ = self;
+        if (!grab) {
+            _ = win32.ClipCursor(null);
+            return;
+        }
+        var client: win32.RECT = .{};
+        if (win32.GetClientRect(w.hwnd, &client) == 0) return;
+        var top_left = win32.POINT{ .x = client.left, .y = client.top };
+        var bottom_right = win32.POINT{ .x = client.right, .y = client.bottom };
+        if (win32.ClientToScreen(w.hwnd, &top_left) == 0) return;
+        if (win32.ClientToScreen(w.hwnd, &bottom_right) == 0) return;
+        const clip = win32.RECT{
+            .left = top_left.x,
+            .top = top_left.y,
+            .right = bottom_right.x,
+            .bottom = bottom_right.y,
+        };
+        _ = win32.ClipCursor(&clip);
+    }
+
+    /// `ShowCursor` is a counter: pair each hide with exactly one show.
+    fn setCursorHidden(self: *WindowsWebView2Backend, w: *WinWindow, hidden: bool) void {
+        _ = self;
+        if (w.cursor_hidden == hidden) return;
+        w.cursor_hidden = hidden;
+        _ = win32.ShowCursor(if (hidden) win32.FALSE else win32.TRUE);
+    }
+
+    fn applyUserAttention(self: *WindowsWebView2Backend, w: *WinWindow, attention: foundation.AttentionType) void {
+        _ = self;
+        // Upstream tao skips flashing a focused, non-minimised window.
+        const active = win32.GetActiveWindow();
+        if (active != null and active.? == w.hwnd and win32.IsIconic(w.hwnd) == 0) return;
+
+        var flags: u32 = win32.FLASHW_STOP;
+        var count: u32 = 0;
+        switch (attention) {
+            .none => {},
+            .informational => {
+                flags = win32.FLASHW_TRAY;
+                count = 4;
+            },
+            .critical => {
+                flags = win32.FLASHW_ALL | win32.FLASHW_TIMERNOFG;
+                count = std.math.maxInt(u32);
+            },
+        }
+        const info = win32.FLASHWINFO{ .hwnd = w.hwnd, .dwFlags = flags, .uCount = count };
+        _ = win32.FlashWindowEx(&info);
+    }
+
+    /// One-pixel DWM frame extension is the supported way to give a borderless (`WS_POPUP`)
+    /// window a drop shadow; all-zero margins remove it. Decorated windows already receive the
+    /// OS shadow, so this is best-effort there.
+    fn applyShadow(self: *WindowsWebView2Backend, w: *WinWindow, enabled: bool) void {
+        _ = self;
+        const margins = if (enabled)
+            win32.MARGINS{ .cxLeftWidth = 1, .cxRightWidth = 1, .cyTopHeight = 1, .cyBottomHeight = 1 }
+        else
+            win32.MARGINS{};
+        _ = win32.DwmExtendFrameIntoClientArea(w.hwnd, &margins);
+    }
+
+    /// Windows 11 22H2+ system backdrop (`DWMWA_SYSTEMBACKDROP_TYPE`); `.blur` uses the legacy
+    /// accent policy. Both are silently ignored when the build does not implement them.
+    fn applyEffect(self: *WindowsWebView2Backend, w: *WinWindow, effect: foundation.Effect) void {
+        if (backdropType(effect)) |kind| {
+            self.setAccent(w, win32.ACCENT_DISABLED);
+            const value: i32 = kind;
+            _ = win32.DwmSetWindowAttribute(w.hwnd, win32.DWMWA_SYSTEMBACKDROP_TYPE, &value, @sizeOf(i32));
+        } else {
+            self.setAccent(w, win32.ACCENT_ENABLE_BLURBEHIND);
+        }
+    }
+
+    fn setAccent(self: *WindowsWebView2Backend, w: *WinWindow, state: u32) void {
+        _ = self;
+        const proc = setWindowCompositionAttribute() orelse return;
+        var policy = win32.ACCENT_POLICY{ .AccentState = state };
+        var data = win32.WINDOWCOMPOSITIONATTRIBDATA{
+            .pvData = &policy,
+            .cbData = @sizeOf(win32.ACCENT_POLICY),
+        };
+        _ = proc(w.hwnd, &data);
     }
 
     /// Calls `SetForegroundWindow`.
@@ -2084,6 +2554,35 @@ fn wndProc(hwnd: win32.HWND, msg: win32.UINT, wparam: win32.WPARAM, lparam: win3
             }
             return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
         },
+        win32.WM_SETCURSOR => {
+            if (w) |win| {
+                if (win32.loword(lparam) == win32.HTCLIENT) {
+                    // Restore the cursor selected by `set_cursor_icon`; the class cursor is the
+                    // arrow, which `DefWindowProcW` would otherwise reinstall on every move.
+                    const cursor = win.cursor orelse win32.LoadCursorW(null, win32.IDC_ARROW);
+                    _ = win32.SetCursor(cursor);
+                    return win32.TRUE;
+                }
+            }
+            return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+        },
+        win32.WM_SETFOCUS => {
+            if (w) |win| {
+                // Re-apply the confinement / hidden cursor the snapshot asked for.
+                if (win.extras.cursor_grab) win.backend.applyCursorGrab(win, true);
+                if (!win.extras.cursor_visible) win.backend.setCursorHidden(win, true);
+            }
+            return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+        },
+        win32.WM_KILLFOCUS => {
+            if (w) |win| {
+                // `ClipCursor` and `ShowCursor` are process-wide; do not hold them while another
+                // window (or application) has focus.
+                if (win.extras.cursor_grab) _ = win32.ClipCursor(null);
+                if (win.cursor_hidden) win.backend.setCursorHidden(win, false);
+            }
+            return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+        },
         win32.WM_GETMINMAXINFO => {
             if (w) |win| {
                 const info: *win32.MINMAXINFO = @ptrFromInt(@as(usize, @bitCast(lparam)));
@@ -2194,4 +2693,52 @@ test "a preflight block carries exactly one Access-Control-Allow-Origin" {
     }
     try std.testing.expectEqual(@as(usize, 1), occurrences);
     try std.testing.expect(std.mem.indexOf(u8, block.items, "Access-Control-Allow-Methods: GET, POST") != null);
+}
+
+test "WindowExtras mappings match tao's Windows tables" {
+    // Cursor: every shared ordinal maps to the same IDC_* tao uses.
+    try std.testing.expectEqual(win32.IDC_ARROW, cursorId(.default));
+    try std.testing.expectEqual(win32.IDC_ARROW, cursorId(.arrow));
+    try std.testing.expectEqual(win32.IDC_CROSS, cursorId(.crosshair));
+    try std.testing.expectEqual(win32.IDC_HAND, cursorId(.hand));
+    try std.testing.expectEqual(win32.IDC_IBEAM, cursorId(.text));
+    try std.testing.expectEqual(win32.IDC_SIZEALL, cursorId(.move));
+    try std.testing.expectEqual(win32.IDC_WAIT, cursorId(.wait));
+    try std.testing.expectEqual(win32.IDC_HELP, cursorId(.help));
+    try std.testing.expectEqual(win32.IDC_APPSTARTING, cursorId(.progress));
+    try std.testing.expectEqual(win32.IDC_NO, cursorId(.not_allowed));
+    try std.testing.expectEqual(win32.IDC_SIZEWE, cursorId(.resize_ew));
+    try std.testing.expectEqual(win32.IDC_SIZENS, cursorId(.resize_ns));
+    try std.testing.expectEqual(win32.IDC_SIZEALL, cursorId(.grab));
+    try std.testing.expectEqual(win32.IDC_SIZEALL, cursorId(.grabbing));
+
+    // Progress: `ProgressStatus` ordinals must not leak into `TBPFLAG`.
+    try std.testing.expectEqual(win32.TBPF_NOPROGRESS, progressFlag(.none));
+    try std.testing.expectEqual(win32.TBPF_NORMAL, progressFlag(.normal));
+    try std.testing.expectEqual(win32.TBPF_INDETERMINATE, progressFlag(.indeterminate));
+    try std.testing.expectEqual(win32.TBPF_PAUSED, progressFlag(.paused));
+    try std.testing.expectEqual(win32.TBPF_ERROR, progressFlag(.@"error"));
+
+    // Effects: blur is the accent-policy escape hatch; the rest are DWM backdrop types.
+    try std.testing.expect(backdropType(.blur) == null);
+    try std.testing.expectEqual(@as(?i32, win32.DWMSBT_NONE), backdropType(.none));
+    try std.testing.expectEqual(@as(?i32, win32.DWMSBT_MAINWINDOW), backdropType(.mica));
+    try std.testing.expectEqual(@as(?i32, win32.DWMSBT_TRANSIENTWINDOW), backdropType(.acrylic));
+    try std.testing.expectEqual(@as(?i32, win32.DWMSBT_TABBEDWINDOW), backdropType(.tabbed));
+}
+
+test "themeIsDark treats explicit themes literally and delegates system" {
+    try std.testing.expect(themeIsDark(.dark));
+    try std.testing.expect(!themeIsDark(.light));
+    try std.testing.expectEqual(systemPrefersDark(), themeIsDark(.system));
+}
+
+test "badgeLabel keeps one or two digits and clamps at 99+" {
+    var buf: [4]u8 = undefined;
+    try std.testing.expectEqualStrings("1", badgeLabel(1, &buf));
+    try std.testing.expectEqualStrings("7", badgeLabel(7, &buf));
+    try std.testing.expectEqualStrings("42", badgeLabel(42, &buf));
+    try std.testing.expectEqualStrings("99", badgeLabel(99, &buf));
+    try std.testing.expectEqualStrings("99+", badgeLabel(100, &buf));
+    try std.testing.expectEqualStrings("99+", badgeLabel(std.math.maxInt(u32), &buf));
 }

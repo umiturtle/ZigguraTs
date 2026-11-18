@@ -62,6 +62,7 @@ pub const WStr = [*:0]u16;
 pub const ERROR_SUCCESS: LSTATUS = 0;
 pub const REG_SZ: DWORD = 1;
 pub const REG_EXPAND_SZ: DWORD = 2;
+pub const REG_DWORD: DWORD = 4;
 pub const KEY_QUERY_VALUE: DWORD = 0x0001;
 pub const KEY_WOW64_32KEY: DWORD = 0x0200;
 pub const KEY_WOW64_64KEY: DWORD = 0x0100;
@@ -88,6 +89,7 @@ pub const WM_CLOSE = 0x0010;
 pub const WM_QUIT = 0x0012;
 pub const WM_PAINT = 0x000F;
 pub const WM_ERASEBKGND = 0x0014;
+pub const WM_SETCURSOR = 0x0020;
 pub const WM_GETMINMAXINFO = 0x0024;
 pub const WM_NCCREATE = 0x0081;
 pub const WM_NCDESTROY = 0x0082;
@@ -116,6 +118,7 @@ pub const WS_MINIMIZEBOX = 0x0002_0000;
 pub const WS_MAXIMIZEBOX = 0x0001_0000;
 
 pub const WS_EX_TOPMOST = 0x0000_0008;
+pub const WS_EX_TRANSPARENT = 0x0000_0020;
 pub const WS_EX_APPWINDOW = 0x0004_0000;
 pub const WS_EX_LAYERED = 0x0008_0000;
 pub const WS_EX_NOREDIRECTIONBITMAP = 0x0020_0000;
@@ -165,11 +168,45 @@ pub const CS_VREDRAW = 0x0001;
 pub const CS_HREDRAW = 0x0002;
 pub const CS_OWNDC = 0x0020;
 pub const IDC_ARROW: usize = 32512;
+/// Cursor identities for `LoadCursorW` (`winuser.h` `IDC_*`). `CROSS` is `IDC_CROSS` (32515),
+/// while `IDC_SIZENWSE`/`IDC_SIZENESW` cover the diagonal resize arrows tao maps.
+pub const IDC_IBEAM: usize = 32513;
+pub const IDC_WAIT: usize = 32514;
+pub const IDC_CROSS: usize = 32515;
+pub const IDC_SIZENWSE: usize = 32642;
+pub const IDC_SIZENESW: usize = 32643;
+pub const IDC_SIZEWE: usize = 32644;
+pub const IDC_SIZENS: usize = 32645;
+pub const IDC_SIZEALL: usize = 32646;
+pub const IDC_NO: usize = 32648;
+pub const IDC_HAND: usize = 32649;
+pub const IDC_APPSTARTING: usize = 32650;
+pub const IDC_HELP: usize = 32651;
 pub const COLOR_WINDOW = 5;
 
 pub const CW_USEDEFAULT: i32 = @bitCast(@as(u32, 0x8000_0000));
 pub const SM_CXSCREEN = 0;
 pub const SM_CYSCREEN = 1;
+pub const SM_CXSMICON = 49;
+pub const SM_CYSMICON = 50;
+
+/// `FlashWindowEx` flags (`winuser.h`).
+pub const FLASHW_STOP: u32 = 0x0000;
+pub const FLASHW_CAPTION: u32 = 0x0001;
+pub const FLASHW_TRAY: u32 = 0x0002;
+pub const FLASHW_ALL: u32 = FLASHW_CAPTION | FLASHW_TRAY;
+pub const FLASHW_TIMER: u32 = 0x0004;
+pub const FLASHW_TIMERNOFG: u32 = 0x000C;
+
+/// `ITaskbarList3` progress states (`shobjidl_core.h` `TBPFLAG`).
+pub const TBPF_NOPROGRESS: i32 = 0x0;
+pub const TBPF_INDETERMINATE: i32 = 0x1;
+pub const TBPF_NORMAL: i32 = 0x2;
+pub const TBPF_ERROR: i32 = 0x4;
+pub const TBPF_PAUSED: i32 = 0x8;
+
+/// `CLSCTX_SERVER` — in-process, local and remote servers (used by `CoCreateInstance`).
+pub const CLSCTX_SERVER: DWORD = 0x15;
 
 pub const HTCLIENT = 1;
 pub const HTCAPTION = 2;
@@ -179,7 +216,23 @@ pub const LWA_ALPHA = 0x0000_0002;
 pub const DWMWA_USE_IMMERSIVE_DARK_MODE_OLD = 19;
 pub const DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
 pub const DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+/// `DWMWA_SYSTEMBACKDROP_TYPE` (Windows 11 22H2+). Older builds reject the attribute, which the
+/// backend treats exactly like the dark-mode attribute: silently ignored.
+pub const DWMWA_SYSTEMBACKDROP_TYPE = 38;
 pub const DWMWCP_ROUND = 2;
+
+/// `DWM_SYSTEMBACKDROP_TYPE` values.
+pub const DWMSBT_AUTO = 0;
+pub const DWMSBT_NONE = 1;
+pub const DWMSBT_MAINWINDOW = 2;
+pub const DWMSBT_TRANSIENTWINDOW = 3;
+pub const DWMSBT_TABBEDWINDOW = 4;
+
+/// `ACCENT_STATE` for the undocumented-but-stable `SetWindowCompositionAttribute` accent policy.
+pub const ACCENT_DISABLED: u32 = 0;
+pub const ACCENT_ENABLE_BLURBEHIND: u32 = 3;
+/// `WINDOWCOMPOSITIONATTRIB::WCA_ACCENT_POLICY`.
+pub const WCA_ACCENT_POLICY: u32 = 19;
 
 /// `DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2`
 pub const DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2: isize = -4;
@@ -286,6 +339,145 @@ pub const SYSTEM_INFO = extern struct {
     processor_revision: u16,
 };
 
+/// `FLASHWINFO` — parameter block for `FlashWindowEx`.
+pub const FLASHWINFO = extern struct {
+    cbSize: u32 = @sizeOf(FLASHWINFO),
+    hwnd: ?HWND = null,
+    dwFlags: u32 = 0,
+    uCount: u32 = 0,
+    dwTimeout: u32 = 0,
+};
+
+/// `MARGINS` — parameter block for `DwmExtendFrameIntoClientArea`.
+pub const MARGINS = extern struct {
+    cxLeftWidth: i32 = 0,
+    cxRightWidth: i32 = 0,
+    cyTopHeight: i32 = 0,
+    cyBottomHeight: i32 = 0,
+};
+
+/// `ACCENT_POLICY` — payload of `WCA_ACCENT_POLICY`. The API is undocumented but its layout has
+/// been stable since Windows 10; `SetWindowCompositionAttribute` is resolved dynamically so a
+/// missing export simply means "no blur" on that build.
+pub const ACCENT_POLICY = extern struct {
+    AccentState: u32 = ACCENT_DISABLED,
+    AccentFlags: u32 = 0,
+    GradientColor: u32 = 0,
+    AnimationId: u32 = 0,
+};
+
+/// `WINDOWCOMPOSITIONATTRIBDATA`.
+pub const WINDOWCOMPOSITIONATTRIBDATA = extern struct {
+    Attrib: u32 = WCA_ACCENT_POLICY,
+    pvData: ?*anyopaque = null,
+    cbData: usize = 0,
+};
+
+pub const SetWindowCompositionAttributeFn =
+    *const fn (HWND, *WINDOWCOMPOSITIONATTRIBDATA) callconv(CC) BOOL;
+
+/// `GUID` / `CLSID` / `IID` (`guiddef.h`). Same 128-bit layout as `com.Guid`; the COM constants
+/// below are spelled out as literals so no SDK header or import library is required.
+pub const GUID = extern struct {
+    d1: u32,
+    d2: u16,
+    d3: u16,
+    d4: [8]u8,
+};
+
+pub const CLSID_TaskbarList = GUID{
+    .d1 = 0x56FDF344,
+    .d2 = 0xFD6D,
+    .d3 = 0x11D0,
+    .d4 = .{ 0x95, 0x8A, 0x00, 0x60, 0x97, 0xC9, 0xA0, 0x90 },
+};
+
+pub const IID_ITaskbarList3 = GUID{
+    .d1 = 0xEA1AFB91,
+    .d2 = 0x9E28,
+    .d3 = 0x4B86,
+    .d4 = .{ 0x90, 0xE9, 0x9E, 0x9F, 0x8A, 0x5E, 0xEF, 0xAF },
+};
+
+/// `ITaskbarList3` (`shobjidl_core.h`), 21 vtable slots. Only the progress / overlay methods are
+/// typed; the rest keep the slot offsets ABI-exact.
+pub const ITaskbarList3 = extern struct {
+    vtable: *const VTable,
+
+    pub const VTable = extern struct {
+        QueryInterface: *const fn (*ITaskbarList3, *const GUID, *?*anyopaque) callconv(CC) HResult,
+        AddRef: *const fn (*ITaskbarList3) callconv(CC) u32,
+        Release: *const fn (*ITaskbarList3) callconv(CC) u32,
+        HrInit: *const fn (*ITaskbarList3) callconv(CC) HResult,
+        AddTab: *const fn (*ITaskbarList3, HWND) callconv(CC) HResult,
+        DeleteTab: *const fn (*ITaskbarList3, HWND) callconv(CC) HResult,
+        ActivateTab: *const fn (*ITaskbarList3, HWND) callconv(CC) HResult,
+        SetActiveAlt: *const fn (*ITaskbarList3, HWND) callconv(CC) HResult,
+        MarkFullscreenWindow: *const fn (*ITaskbarList3, HWND, BOOL) callconv(CC) HResult,
+        SetProgressValue: *const fn (*ITaskbarList3, HWND, u64, u64) callconv(CC) HResult,
+        SetProgressState: *const fn (*ITaskbarList3, HWND, i32) callconv(CC) HResult,
+        RegisterTab: *const fn (*ITaskbarList3, HWND, HWND) callconv(CC) HResult,
+        UnregisterTab: *const fn (*ITaskbarList3, HWND) callconv(CC) HResult,
+        SetTabOrder: *const fn (*ITaskbarList3, HWND, HWND) callconv(CC) HResult,
+        SetTabActive: *const fn (*ITaskbarList3, HWND, HWND, DWORD) callconv(CC) HResult,
+        ThumbBarAddButtons: *const fn (*ITaskbarList3, HWND, UINT, ?*anyopaque) callconv(CC) HResult,
+        ThumbBarUpdateButtons: *const fn (*ITaskbarList3, HWND, UINT, ?*anyopaque) callconv(CC) HResult,
+        ThumbBarSetImageList: *const fn (*ITaskbarList3, HWND, ?*anyopaque) callconv(CC) HResult,
+        SetOverlayIcon: *const fn (*ITaskbarList3, HWND, ?HICON, ?W) callconv(CC) HResult,
+        SetThumbnailTooltip: *const fn (*ITaskbarList3, HWND, ?W) callconv(CC) HResult,
+        SetThumbnailClip: *const fn (*ITaskbarList3, HWND, ?*RECT) callconv(CC) HResult,
+    };
+};
+
+// GDI objects used to synthesise the numeric taskbar overlay icon.
+pub const HBITMAP = *anyopaque;
+pub const HFONT = *anyopaque;
+
+pub const RGBQUAD = extern struct {
+    rgbBlue: u8 = 0,
+    rgbGreen: u8 = 0,
+    rgbRed: u8 = 0,
+    rgbReserved: u8 = 0,
+};
+
+pub const BITMAPINFOHEADER = extern struct {
+    biSize: u32 = @sizeOf(BITMAPINFOHEADER),
+    biWidth: i32 = 0,
+    biHeight: i32 = 0,
+    biPlanes: u16 = 1,
+    biBitCount: u16 = 0,
+    biCompression: u32 = 0,
+    biSizeImage: u32 = 0,
+    biXPelsPerMeter: i32 = 0,
+    biYPelsPerMeter: i32 = 0,
+    biClrUsed: u32 = 0,
+    biClrImportant: u32 = 0,
+};
+
+pub const BITMAPINFO = extern struct {
+    bmiHeader: BITMAPINFOHEADER = .{},
+    bmiColors: [1]RGBQUAD = .{.{}},
+};
+
+pub const BI_RGB: u32 = 0;
+pub const DIB_RGB_COLORS: UINT = 0;
+pub const FW_BOLD: i32 = 700;
+pub const DEFAULT_CHARSET: DWORD = 1;
+pub const CLEARTYPE_QUALITY: DWORD = 5;
+pub const DEFAULT_PITCH: DWORD = 0;
+pub const TRANSPARENT: i32 = 1;
+pub const DT_CENTER: UINT = 0x0000_0001;
+pub const DT_VCENTER: UINT = 0x0000_0004;
+pub const DT_SINGLELINE: UINT = 0x0000_0020;
+
+pub const ICONINFO = extern struct {
+    fIcon: BOOL = TRUE,
+    xHotspot: DWORD = 0,
+    yHotspot: DWORD = 0,
+    hbmMask: ?HBITMAP = null,
+    hbmColor: ?HBITMAP = null,
+};
+
 // ---------------------------------------------------------------------------
 // user32.dll
 // ---------------------------------------------------------------------------
@@ -358,6 +550,17 @@ pub extern "user32" fn GetDC(hwnd: ?HWND) callconv(CC) ?HDC;
 pub extern "user32" fn ReleaseDC(hwnd: ?HWND, dc: HDC) callconv(CC) i32;
 pub extern "user32" fn InvalidateRect(hwnd: HWND, rect: ?*const RECT, erase: BOOL) callconv(CC) BOOL;
 pub extern "user32" fn SetLayeredWindowAttributes(hwnd: HWND, key: u32, alpha: u8, flags: DWORD) callconv(CC) BOOL;
+pub extern "user32" fn ClientToScreen(hwnd: HWND, point: *POINT) callconv(CC) BOOL;
+pub extern "user32" fn SetCursorPos(x: i32, y: i32) callconv(CC) BOOL;
+pub extern "user32" fn ClipCursor(rect: ?*const RECT) callconv(CC) BOOL;
+pub extern "user32" fn ShowCursor(show: BOOL) callconv(CC) i32;
+pub extern "user32" fn GetActiveWindow() callconv(CC) ?HWND;
+pub extern "user32" fn IsIconic(hwnd: HWND) callconv(CC) BOOL;
+pub extern "user32" fn FlashWindowEx(info: *const FLASHWINFO) callconv(CC) BOOL;
+pub extern "user32" fn FillRect(dc: HDC, rect: *const RECT, brush: HBRUSH) callconv(CC) i32;
+pub extern "user32" fn DrawTextW(dc: HDC, text: [*]const u16, count: i32, rect: *RECT, format: UINT) callconv(CC) i32;
+pub extern "user32" fn CreateIconIndirect(info: *const ICONINFO) callconv(CC) ?HICON;
+pub extern "user32" fn DestroyIcon(icon: HICON) callconv(CC) BOOL;
 
 // ---------------------------------------------------------------------------
 // kernel32.dll
@@ -381,8 +584,63 @@ pub extern "kernel32" fn GetTickCount64() callconv(CC) u64;
 pub extern "kernel32" fn GetSystemInfo(out: *SYSTEM_INFO) callconv(CC) void;
 
 // ---------------------------------------------------------------------------
+// gdi32.dll (numeric taskbar overlay icon)
+// ---------------------------------------------------------------------------
+
+pub extern "gdi32" fn CreateCompatibleDC(dc: ?HDC) callconv(CC) ?HDC;
+pub extern "gdi32" fn CreateDIBSection(
+    dc: ?HDC,
+    info: *const BITMAPINFO,
+    usage: UINT,
+    bits: *?*anyopaque,
+    section: ?HANDLE,
+    offset: DWORD,
+) callconv(CC) ?HBITMAP;
+pub extern "gdi32" fn SelectObject(dc: HDC, obj: *anyopaque) callconv(CC) *anyopaque;
+pub extern "gdi32" fn DeleteObject(obj: *anyopaque) callconv(CC) BOOL;
+pub extern "gdi32" fn DeleteDC(dc: HDC) callconv(CC) BOOL;
+pub extern "gdi32" fn CreateBitmap(
+    width: i32,
+    height: i32,
+    planes: UINT,
+    bits_per_pixel: UINT,
+    bits: ?*const anyopaque,
+) callconv(CC) ?HBITMAP;
+pub extern "gdi32" fn CreateFontW(
+    height: i32,
+    width: i32,
+    escapement: i32,
+    orientation: i32,
+    weight: i32,
+    italic: DWORD,
+    underline: DWORD,
+    strike_out: DWORD,
+    charset: DWORD,
+    out_precision: DWORD,
+    clip_precision: DWORD,
+    quality: DWORD,
+    pitch_and_family: DWORD,
+    face_name: W,
+) callconv(CC) ?HFONT;
+pub extern "gdi32" fn SetBkMode(dc: HDC, mode: i32) callconv(CC) i32;
+pub extern "gdi32" fn SetTextColor(dc: HDC, color: u32) callconv(CC) u32;
+
+/// `RGB(r, g, b)` — the byte order `COLORREF` / GDI expects.
+pub inline fn rgb(r: u8, g: u8, b: u8) u32 {
+    return @as(u32, r) | (@as(u32, g) << 8) | (@as(u32, b) << 16);
+}
+
+// ---------------------------------------------------------------------------
 // ole32.dll / shlwapi.dll / dwmapi.dll
 // ---------------------------------------------------------------------------
+
+pub extern "ole32" fn CoCreateInstance(
+    clsid: *const GUID,
+    outer: ?*anyopaque,
+    cls_context: DWORD,
+    iid: *const GUID,
+    out: *?*anyopaque,
+) callconv(CC) HResult;
 
 pub extern "ole32" fn CoInitializeEx(reserved: ?*anyopaque, co_init: u32) callconv(CC) HRESULT;
 pub extern "ole32" fn CoUninitialize() callconv(CC) void;
@@ -398,6 +656,10 @@ pub extern "dwmapi" fn DwmSetWindowAttribute(
     value: *const anyopaque,
     size: u32,
 ) callconv(CC) i32;
+
+/// `DwmExtendFrameIntoClientArea` — extending by one pixel is the standard way to give a
+/// borderless (`WS_POPUP`) window the DWM frame shadow; all-zero margins disable the extension.
+pub extern "dwmapi" fn DwmExtendFrameIntoClientArea(hwnd: HWND, margins: *const MARGINS) callconv(CC) i32;
 
 // ---------------------------------------------------------------------------
 // advapi32.dll (registry: WebView2 runtime discovery)
@@ -450,6 +712,13 @@ pub const IStream = extern struct {
 comptime {
     // IUnknown(3) + Read/Write/Seek/SetSize/CopyTo/Commit/Revert/LockRegion/UnlockRegion/Stat/Clone
     std.debug.assert(@sizeOf(IStream.VTable) == 14 * @sizeOf(*anyopaque));
+    // IUnknown(3) + ITaskbarList(5) + ITaskbarList2(1) + ITaskbarList3(12).
+    std.debug.assert(@sizeOf(ITaskbarList3.VTable) == 21 * @sizeOf(*anyopaque));
+    std.debug.assert(@sizeOf(GUID) == 16);
+    std.debug.assert(@sizeOf(FLASHWINFO) == 32);
+    std.debug.assert(@sizeOf(ACCENT_POLICY) == 16);
+    // BOOL + two DWORDs + two pointers, 8-byte aligned on x64/arm64.
+    std.debug.assert(@sizeOf(ICONINFO) == 32);
 }
 
 // ---------------------------------------------------------------------------
