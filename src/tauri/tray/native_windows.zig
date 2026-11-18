@@ -20,8 +20,8 @@
 
 const std = @import("std");
 
-const tray = @import("mod.zig");
-const menu = @import("../menu/mod.zig");
+const tray = @import("zts_tauri").tray;
+const menu = @import("zts_tauri").menu;
 const menu_windows = @import("../menu/native_windows.zig");
 const win = @import("../native_win32.zig");
 

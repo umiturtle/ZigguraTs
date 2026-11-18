@@ -8,7 +8,7 @@ const std = @import("std");
 const cstr = @import("../native_cstr.zig");
 const Allocator = std.mem.Allocator;
 
-const clipboard = @import("mod.zig");
+const clipboard = @import("zts_tauri").clipboard;
 const win = @import("../native_win32.zig");
 
 const Error = clipboard.ClipboardError;
@@ -31,6 +31,7 @@ extern "c" fn GetClipboardData(format: u32) HANDLE;
 extern "c" fn SetClipboardData(format: u32, mem: HANDLE) HANDLE;
 extern "c" fn RegisterClipboardFormatW(name: [*:0]const u16) u32;
 extern "c" fn GlobalAlloc(flags: u32, bytes: usize) HANDLE;
+extern "c" fn GlobalSize(mem: HANDLE) usize;
 extern "c" fn GlobalLock(mem: HANDLE) ?*anyopaque;
 extern "c" fn GlobalUnlock(mem: HANDLE) BOOL;
 extern "c" fn GlobalFree(mem: HANDLE) HANDLE;
@@ -91,6 +92,31 @@ fn writeTextImpl(_: ?*anyopaque, text: []const u8) Error!void {
     try setUnicodeText(text, alloc);
 }
 
+/// Reads a decimal field from a CF_HTML header (`StartFragment:`, `EndFragment:`, …).
+fn cfHtmlOffset(raw: []const u8, key: []const u8) ?usize {
+    const index = std.mem.indexOf(u8, raw, key) orelse return null;
+    const rest = raw[index + key.len ..];
+    const end = std.mem.indexOfAny(u8, rest, "\r\n") orelse return null;
+    const text = std.mem.trim(u8, rest[0..end], " \t");
+    if (text.len == 0) return null;
+    return std.fmt.parseInt(usize, text, 10) catch null;
+}
+
+/// Extracts the HTML fragment described by a CF_HTML payload.
+///
+/// Returning the whole block (header included) would make Windows disagree with GTK/macOS,
+/// whose clipboard APIs hand back the fragment only. Invalid offsets fall back to the raw
+/// text rather than panicking on attacker-controlled clipboard data.
+fn cfHtmlFragment(raw: []const u8) []const u8 {
+    if (raw.len == 0) return raw;
+    const start = cfHtmlOffset(raw, "StartFragment:") orelse return raw;
+    const end = cfHtmlOffset(raw, "EndFragment:") orelse return raw;
+    // `start == end == 0` is what a producer that omits the offsets writes; slicing it would
+    // silently return an empty string, so fall back to the whole payload.
+    if (start >= end or end > raw.len) return raw;
+    return raw[start..end];
+}
+
 fn readHtmlImpl(_: ?*anyopaque, allocator: Allocator) Error![]const u8 {
     const alloc = std.heap.c_allocator;
     const name_z = cstr.allocZ(alloc, "HTML Format") catch return error.OutOfMemory;
@@ -105,17 +131,20 @@ fn readHtmlImpl(_: ?*anyopaque, allocator: Allocator) Error![]const u8 {
     const format = RegisterClipboardFormatW(&wide_name);
     if (format == 0) return error.Failed;
     const handle = GetClipboardData(format) orelse return "";
+    // `GlobalSize` is the ONLY safe bound: the block is usually far smaller than 1 MiB, and
+    // scanning a fixed 1 MiB window reads past the allocation (the pre-fix code did that).
+    const size = GlobalSize(handle);
+    if (size == 0) return error.Failed;
     const locked = GlobalLock(handle) orelse return error.Failed;
     defer _ = GlobalUnlock(handle);
 
     const bytes: [*]const u8 = @ptrCast(locked);
-    // `HTML Format` is UTF-8 with a header; the payload is binary-safe up to the first NUL run.
-    const len = std.mem.indexOfScalar(u8, bytes[0 .. 1 << 20], 0) orelse 0;
-    return allocator.dupe(u8, bytes[0..len]) catch error.OutOfMemory;
+    const view = bytes[0..size];
+    const len = std.mem.indexOfScalar(u8, view, 0) orelse view.len;
+    return allocator.dupe(u8, cfHtmlFragment(view[0..len])) catch error.OutOfMemory;
 }
 
 fn writeHtmlImpl(_: ?*anyopaque, html: []const u8, alt_text: ?[]const u8) Error!void {
-    _ = alt_text;
     const alloc = std.heap.c_allocator;
 
     // Minimal `HTML Format` payload (the same header Chromium writes).
@@ -172,6 +201,12 @@ fn writeHtmlImpl(_: ?*anyopaque, html: []const u8, alt_text: ?[]const u8) Error!
         _ = GlobalFree(handle);
         return error.Failed;
     }
+
+    // The contract is HTML **plus** its plain-text fallback; a browser or editor that does not
+    // read `HTML Format` still gets the text. `EmptyClipboard` already ran above, so setting a
+    // second format here is legal.
+    const fallback = if (alt_text) |alt| if (alt.len > 0) alt else html else html;
+    try setUnicodeText(fallback, alloc);
 }
 
 fn clearImpl(_: ?*anyopaque) Error!void {
@@ -229,6 +264,23 @@ const vtable = clipboard.Backend.VTable{
 
 pub fn backend() clipboard.Backend {
     return .{ .vtable = &vtable };
+}
+
+test "Win32 clipboard HTML round-trips a short payload without reading past the block" {
+    if (@import("builtin").os.tag != .windows) return error.SkipZigTest;
+
+    const alloc = std.testing.allocator;
+    var arena = std.heap.ArenaAllocator.init(alloc);
+    defer arena.deinit();
+
+    backend().writeHtml("<b>hi</b>", "hi") catch |err| switch (err) {
+        error.Unavailable => return error.SkipZigTest, // no interactive window station
+        else => return err,
+    };
+    const html = try backend().readHtml(arena.allocator());
+    try std.testing.expectEqualStrings("<b>hi</b>", html);
+    const text = try backend().readText(arena.allocator());
+    try std.testing.expectEqualStrings("hi", text);
 }
 
 test "Win32 clipboard round-trips text and resets on clear" {

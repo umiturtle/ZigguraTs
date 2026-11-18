@@ -92,6 +92,7 @@ pub const WebviewHost = struct {
             .fullscreen = spec.fullscreen,
             .devtools = spec.devtools,
             .background_color = spec.background_color,
+            .theme = spec.theme,
             .initial_url = spec.initial_url,
             .center = spec.center,
             .maximized = spec.maximized,

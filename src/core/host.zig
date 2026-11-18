@@ -36,14 +36,7 @@ pub const StepMode = enum {
 
 /// What the OS tells the app about its title bar. `.system` means "not reported" — a page should
 /// then follow `prefers-color-scheme` instead of guessing.
-pub const WindowTheme = enum {
-    /// Follow the OS look (and its live light/dark switch).
-    system,
-    /// Force the light palette.
-    light,
-    /// Force the dark palette.
-    dark,
-};
+pub const WindowTheme = foundation.window_extras.Theme;
 
 /// Declarative initial window creation specification.
 pub const WindowSpec = struct {
@@ -78,6 +71,7 @@ pub const WindowSpec = struct {
     /// Which title-bar appearance to request.
     theme: WindowTheme = .system,
     /// First navigation target. The default is the embedded `dist/` bundle, not a URL.
+    /// An **empty** string creates a blank window without navigating (call `Host.navigate` later).
     initial_url: []const u8 = "tauri://localhost/",
     /// P1 #10 — `tauri.conf.json` fields that used to be parsed and then dropped.
     /// They are carried on the spec so every backend can act on them without app-level OS branches.

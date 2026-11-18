@@ -1,11 +1,11 @@
 # Task M6-08: 静的チェックを Linux ネイティブ行列から分離（`ci-static`）
 
-- **Status**: `review`
+- **Status**: `done`
 - **Branch**: `arena/docs-runtime-simplification`
 - **PR Head**: `feature/separate-static-ci`
 - **Scope**: `.github/workflows/ci.yml`, `docs/environment/github-actions.md`
 - **Upstream Reference**: なし（CI 構成）
-- **Next Step**: `feature/separate-static-ci` → `develop` の PR を作り、`ci-static` が Linux / parity を巻き込まずに単独で走ることを確認する。
+- **Next Step**: 完了。PR #31 は `develop` へマージ済み（`7586707`）。`ci-static` は 29 秒で pass し、Linux 行列を待たない。
 
 ---
 
@@ -18,7 +18,7 @@ docs の同期漏れ（`check-docs.py --sync` 忘れ）が Linux ネイティブ
 - [x] `ci-linux` から静的チェックを外し、Xvfb の `zig build test` 2 本だけにする
 - [x] `ci-static` のログを `$GITHUB_STEP_SUMMARY` へミラー（`ci-logs.sh` で読めるように）
 - [x] `docs/environment/github-actions.md` に分離の理由を追記
-- [ ] PR の CI で `ci-static` が単独で pass する
+- [x] PR の CI で `ci-static` が単独で pass する（29s、両実行）
 
 ---
 
@@ -31,7 +31,7 @@ docs の同期漏れ（`check-docs.py --sync` 忘れ）が Linux ネイティブ
   - `ci-linux` は `xvfb-run ./zigw build test -Dgtk=true` の debug / ReleaseFast のみ。
   - 規約 18 のカウント（`publish-check-run-summary.js` = 5、`continue-on-error: true` = 5）は不変。
 - **作業中・直前の状態**:
-  - PR を作成して CI を回す段階。
+  - PR #31 を作成し、`ci-static` pass を確認して `develop` へマージ済み（`7586707`）。
 - **ハマりどころ**:
   - `ci-static` に Check Run パブリッシャーを足すと規約 18 の count が崩れるため、
     Step Summary へのミラーのみ行う。

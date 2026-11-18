@@ -12,8 +12,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const tray = @import("mod.zig");
-const menu = @import("../menu/mod.zig");
+const tray = @import("zts_tauri").tray;
+const menu = @import("zts_tauri").menu;
 const gtk = @import("../native_gtk.zig");
 const cstr = @import("../native_cstr.zig");
 const menu_gtk = @import("../menu/native_gtk.zig");
@@ -106,15 +106,24 @@ fn createIcon(options: tray.TrayIconOptions) Error!?*gtk.GtkStatusIcon {
             },
         }
     }
-    const z = cstr.allocZ(gpa, "image-missing") catch return error.OutOfMemory;
-    defer gpa.free(z);
-    return gtk.gtk_status_icon_new_from_icon_name(z);
+    // Do not fall back to a named theme icon ("image-missing"): a minimal sysroot / CI image
+    // without the Adwaita icon cache makes GTK abort inside `ensure_surface_for_gicon`. An empty
+    // status icon is invisible but never crashes; the app can set an icon later.
+    return gtk.gtk_status_icon_new();
 }
 
 fn freeEntry(entry: *Entry) void {
     gpa.free(entry.id);
     if (entry.tooltip) |t| gpa.free(t);
     if (entry.title) |t| gpa.free(t);
+}
+
+/// Releases every native object owned by `entry`, then the entry itself.
+fn destroyEntry(entry: *Entry) void {
+    if (entry.icon) |icon| gtk.g_object_unref(@ptrCast(icon));
+    if (entry.menu) |popup_menu| gtk.gtk_widget_destroy(popup_menu);
+    freeEntry(entry);
+    gpa.destroy(entry);
 }
 
 fn buildMenu(snapshot: menu.Snapshot) Error!*gtk.GtkWidget {
@@ -131,23 +140,28 @@ fn apply(entry: *Entry, options: tray.TrayIconOptions, snapshot: ?menu.Snapshot)
     const icon = entry.icon orelse (try createIcon(options)) orelse return error.Unavailable;
     entry.icon = icon;
 
+    // Allocate the replacement before releasing the old value. Freeing first and then returning
+    // an error leaves a dangling pointer in the entry, which `destroyEntry` would free twice.
     if (options.tooltip) |tooltip| {
+        const copy = gpa.dupe(u8, tooltip) catch return error.OutOfMemory;
         if (entry.tooltip) |old| gpa.free(old);
-        entry.tooltip = gpa.dupe(u8, tooltip) catch return error.OutOfMemory;
+        entry.tooltip = copy;
         const z = cstr.allocZ(gpa, tooltip) catch return error.OutOfMemory;
         defer gpa.free(z);
         gtk.gtk_status_icon_set_tooltip_text(icon, z);
     }
     if (options.title) |title| {
+        const copy = gpa.dupe(u8, title) catch return error.OutOfMemory;
         if (entry.title) |old| gpa.free(old);
-        entry.title = gpa.dupe(u8, title) catch return error.OutOfMemory;
+        entry.title = copy;
         const z = cstr.allocZ(gpa, title) catch return error.OutOfMemory;
         defer gpa.free(z);
         gtk.gtk_status_icon_set_title(icon, z);
     }
     if (snapshot) |menu_snapshot| {
+        const next = try buildMenu(menu_snapshot);
         if (entry.menu) |old| gtk.gtk_widget_destroy(old);
-        entry.menu = try buildMenu(menu_snapshot);
+        entry.menu = next;
     }
     gtk.gtk_status_icon_set_visible(icon, @intFromBool(entry.visible));
 }
@@ -160,14 +174,20 @@ fn create(_: ?*anyopaque, id: []const u8, options: tray.TrayIconOptions, snapsho
     errdefer gpa.free(owned);
     const entry = gpa.create(Entry) catch return error.OutOfMemory;
     entry.* = .{ .id = owned };
-    errdefer gpa.destroy(entry);
-    icons.append(gpa, entry) catch return error.OutOfMemory;
+    // Publish the entry only after `apply` succeeded; an `errdefer` that frees it while the
+    // global registry still points at it is a use-after-free (the old code did exactly that).
+    errdefer {
+        if (entry.icon) |icon| gtk.g_object_unref(@ptrCast(icon));
+        if (entry.menu) |popup_menu| gtk.gtk_widget_destroy(popup_menu);
+        gpa.destroy(entry);
+    }
 
     const icon = (try createIcon(options)) orelse return error.Unavailable;
     entry.icon = icon;
     _ = gtk.g_signal_connect_data(@ptrCast(icon), "activate", @ptrCast(&onActivate), @ptrCast(entry), null, 0);
     _ = gtk.g_signal_connect_data(@ptrCast(icon), "popup-menu", @ptrCast(&onPopupMenu), @ptrCast(entry), null, 0);
     try apply(entry, options, snapshot);
+    icons.append(gpa, entry) catch return error.OutOfMemory;
 }
 
 fn update(_: ?*anyopaque, id: []const u8, options: tray.TrayIconOptions, snapshot: ?menu.Snapshot) Error!void {
@@ -180,10 +200,7 @@ fn remove(_: ?*anyopaque, id: []const u8) Error!void {
     if (!gtk.ensureInit()) return error.Unavailable;
     for (icons.items, 0..) |entry, i| {
         if (!std.mem.eql(u8, entry.id, id)) continue;
-        if (entry.icon) |icon| gtk.g_object_unref(@ptrCast(icon));
-        if (entry.menu) |popup_menu| gtk.gtk_widget_destroy(popup_menu);
-        freeEntry(entry);
-        gpa.destroy(entry);
+        destroyEntry(entry);
         _ = icons.orderedRemove(i);
         return;
     }
@@ -220,10 +237,7 @@ pub fn statusIconFor(id: []const u8) ?*gtk.GtkStatusIcon {
 
 pub fn resetForTesting() void {
     menu_gtk.popdown();
-    for (icons.items) |entry| {
-        freeEntry(entry);
-        gpa.destroy(entry);
-    }
+    for (icons.items) |entry| destroyEntry(entry);
     icons.clearRetainingCapacity();
     emitter = .{};
 }

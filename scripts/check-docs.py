@@ -369,6 +369,7 @@ ZIGW_SUBCOMMANDS = {
     "docs-check", # renderer tests + the python gates + `zig build docs`
     "doctest",    # only the ```zig check fences
     "full-test",  # `zig build test`
+    "check-os-boundary", # the OS-boundary static checks (module ownership, wiring, no-ops)
 }
 ZIG_SUBCOMMANDS = {
     "build", "build-exe", "build-lib", "build-obj", "test", "fmt", "version", "cc", "c++",
@@ -1256,11 +1257,19 @@ r17_require(
     "src/app_runtime.zig", "onWindowState", "setWindowStateHandler", "applyNativeState",
 )
 # `createWindow()` now applies options on EVERY window, including C-ABI overlay embeds which have
-# no `GtkWindow`. GTK must guard those calls or `zts_webview_window_create` returns Unsupported.
-r17_require(
-    "src/webview/linux.zig", "const top = w.toplevel orelse return;",
-    "if (w.toplevel) |top| c.gtk_window_present",
-)
+# no `GtkWindow`. GTK must guard toplevel-only calls. Two shapes are accepted: the historical
+# `const top = w.toplevel orelse return;` (toplevel-only early return) and the extras refactor's
+# `const widget = if (w.toplevel) |t| t else @ptrCast(w.webview);` (widget-level ops for embeds).
+linux_text = r17_read("src/webview/linux.zig")
+if linux_text is not None:
+    has_old_guard = "const top = w.toplevel orelse return;" in linux_text
+    has_new_guard = "const widget: *c.GtkWidget = if (w.toplevel) |t| t else @ptrCast(w.webview);" in linux_text
+    if not (has_old_guard or has_new_guard):
+        errors.append("src/webview/linux.zig: missing the embedded-webview guard (rule 17)")
+    if "if (w.toplevel) |top| c.gtk_window_present" not in linux_text:
+        errors.append(
+            "src/webview/linux.zig: missing 'if (w.toplevel) |top| c.gtk_window_present' (rule 17)"
+        )
 r17_require(
     "src/webview/mod.zig", "setWindowStateHandler", "applyWindowExtras",
     "centerWindow", "applyWindowCreationOptions", "cfg.maximized", "cfg.center", "cfg.focus",

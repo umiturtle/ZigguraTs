@@ -686,7 +686,18 @@ pub const LinuxGtkBackend = struct {
                     }
                 }
             }
-            c.gtk_container_add(@ptrCast(win_widget), @ptrCast(wv));
+            // Tauri's own GTK layout is `GtkWindow → GtkBox(vertical) → WebView`. The menu
+            // backend packs its `GtkMenuBar` at index 0 of that box, so a toplevel created here
+            // must have one; adding the webview directly makes `registerMenuWindow` return
+            // `error.Unsupported` and no menu bar can ever appear on Linux.
+            const box = c.gtk_box_new(c.GTK_ORIENTATION_VERTICAL, 0);
+            c.gtk_container_add(@ptrCast(win_widget), box);
+            // `gtk_container_add` on a `GtkBox` packs with `expand = FALSE, fill = FALSE`, which
+            // gives the WebView a 1-pixel-tall allocation (the screenshot gallery caught the
+            // 900x1 capture). Pack it explicitly so it fills the window like the embed path.
+            c.gtk_widget_set_hexpand(@ptrCast(wv), 1);
+            c.gtk_widget_set_vexpand(@ptrCast(wv), 1);
+            c.gtk_box_pack_start(@ptrCast(box), @ptrCast(wv), 1, 1, 0);
         }
 
         const win_id = self.windows.acquire(self.allocator, .{
@@ -788,6 +799,11 @@ pub const LinuxGtkBackend = struct {
 
         if (!already_destroyed) {
             if (top) |t| c.gtk_widget_destroy(t) else c.gtk_widget_destroy(@ptrCast(wv));
+            // A user close reaches `onWindowDestroyed`, which reports the close. A programmatic
+            // close released the handle first, so that signal has nothing to find; notify here
+            // instead. Without this, `DesktopRuntime` keeps a dead window in `WindowRegistry`
+            // (and `zts_runtime_native` keeps its menu registration) on GTK and macOS only.
+            if (self.close_handler) |ch| ch.call(win_id);
         }
         c.g_object_unref(ucm);
     }
@@ -1078,10 +1094,22 @@ pub const LinuxGtkBackend = struct {
         if (w.toplevel) |top| c.gtk_window_present(@ptrCast(top));
     }
 
-    /// Calls `gtk_window_begin_move_drag`, so GTK runs the drag.
+    /// Calls `gtk_window_begin_move_drag` with the **current pointer position**.
+    ///
+    /// `(0, 0)` is not "no position": GTK subtracts it from the window origin, so the window
+    /// jumps to the screen corner when a `data-tauri-drag-region` drag starts.
     pub fn startDrag(self: *LinuxGtkBackend, win_id: types.WindowId) types.WebviewError!void {
         const gtk_win = try self.requireGtkWindow(win_id);
-        c.gtk_window_begin_move_drag(gtk_win, 1, 0, 0, 0);
+        var x: c.gint = 0;
+        var y: c.gint = 0;
+        if (c.gdk_display_get_default()) |display| {
+            if (c.gdk_display_get_default_seat(display)) |seat| {
+                if (c.gdk_seat_get_pointer(seat)) |pointer| {
+                    _ = c.gdk_device_get_position(pointer, null, &x, &y);
+                }
+            }
+        }
+        c.gtk_window_begin_move_drag(gtk_win, 1, x, y, 0);
     }
 
     /// Adds a `WebKitUserScript` at `DOCUMENT_START`.

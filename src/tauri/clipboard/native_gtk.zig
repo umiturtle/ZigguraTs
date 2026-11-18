@@ -7,7 +7,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const clipboard = @import("mod.zig");
+const clipboard = @import("zts_tauri").clipboard;
 const gtk = @import("../native_gtk.zig");
 
 const Error = clipboard.ClipboardError;
@@ -31,15 +31,20 @@ fn readTextImpl(_: ?*anyopaque, allocator: Allocator) Error![]const u8 {
     return gtk.fromGtkAlloc(allocator, raw) catch error.OutOfMemory;
 }
 
-fn writeTextImpl(_: ?*anyopaque, text: []const u8) Error!void {
+fn setPlainText(text: []const u8, persist: bool) Error!void {
     if (!gtk.ensureInit()) return error.Unavailable;
     const text_z = gtk.toZ(owned_alloc, text) catch return error.OutOfMemory;
     defer owned_alloc.free(text_z);
 
     releaseOwned();
     gtk.gtk_clipboard_set_text(gtk.clipboard(), text_z.ptr, @intCast(text.len));
-    // Ask the clipboard manager to keep the contents after this process exits.
-    gtk.gtk_clipboard_store(gtk.clipboard());
+    // `gtk_clipboard_store` asks the clipboard manager to keep the contents after this process
+    // exits. That is right for ordinary text and exactly wrong for `write_secret`.
+    if (persist) gtk.gtk_clipboard_store(gtk.clipboard());
+}
+
+fn writeTextImpl(_: ?*anyopaque, text: []const u8) Error!void {
+    return setPlainText(text, true);
 }
 
 fn readHtmlImpl(_: ?*anyopaque, allocator: Allocator) Error![]const u8 {
@@ -98,9 +103,10 @@ fn clearImpl(_: ?*anyopaque) Error!void {
 }
 
 fn writeSecretImpl(_: ?*anyopaque, text: []const u8) Error!void {
-    // GTK has no "concealed" flag; the store hint below keeps it out of the clipboard history
-    // manager on desktops that honour it, which is the closest available behaviour.
-    return writeTextImpl(null, text);
+    // GTK has no "concealed" flag. The closest available behaviour is to *not* hand the payload
+    // to the clipboard manager: `gtk_clipboard_store` would persist it in history, the opposite
+    // of what `write_secret` promises.
+    return setPlainText(text, false);
 }
 
 const vtable = clipboard.Backend.VTable{

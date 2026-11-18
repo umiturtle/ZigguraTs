@@ -131,6 +131,8 @@ pub extern "c" fn gtk_file_filter_new() *GtkFileFilter;
 pub extern "c" fn gtk_file_filter_set_name(filter: *GtkFileFilter, name: [*:0]const u8) void;
 pub extern "c" fn gtk_file_filter_add_pattern(filter: *GtkFileFilter, pattern: [*:0]const u8) void;
 pub extern "c" fn g_slist_free_full(list: *GSList, free_func: *const fn (?*anyopaque) callconv(.c) void) void;
+pub extern "c" fn g_slist_append(list: ?*GSList, data: ?*anyopaque) ?*GSList;
+pub extern "c" fn g_strdup(str: [*:0]const u8) [*:0]u8;
 pub extern "c" fn g_free(mem: ?*anyopaque) void;
 
 pub extern "c" fn gdk_atom_intern_static_string(name: [*:0]const u8) GdkAtom;
@@ -228,6 +230,7 @@ pub extern "c" fn g_object_unref(obj: ?*anyopaque) void;
 
 // ------------------------------------------------------------------ tray (M4-03)
 
+pub extern "c" fn gtk_status_icon_new() ?*GtkStatusIcon;
 pub extern "c" fn gtk_status_icon_new_from_icon_name(name: [*:0]const u8) ?*GtkStatusIcon;
 pub extern "c" fn gtk_status_icon_new_from_file(filename: [*:0]const u8) ?*GtkStatusIcon;
 pub extern "c" fn gtk_status_icon_set_from_icon_name(icon: *GtkStatusIcon, name: [*:0]const u8) void;

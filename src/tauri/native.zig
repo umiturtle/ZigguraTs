@@ -35,10 +35,12 @@ pub const native_options = @import("native_options");
 /// are unit-tested on every OS, like `src/webview/windows_util.zig`.
 pub const win32 = @import("native_win32.zig");
 
-pub const dialog = @import("dialog/mod.zig");
-pub const clipboard = @import("clipboard/mod.zig");
-pub const menu = @import("../tauri/menu/mod.zig");
-pub const tray = @import("../tauri/tray/mod.zig");
+const tauri = @import("zts_tauri");
+
+pub const dialog = tauri.dialog;
+pub const clipboard = tauri.clipboard;
+pub const menu = tauri.menu;
+pub const tray = tauri.tray;
 
 pub const is_gtk = (builtin.os.tag == .linux) and native_options.enable_gtk;
 pub const is_macos = (builtin.os.tag == .macos) and native_options.enable_macos;
@@ -117,6 +119,34 @@ pub fn registerMenuWindow(label: []const u8, handle: ?*anyopaque) bool {
 /// Forgets a window registered with `registerMenuWindow` (call before destroying it).
 pub fn unregisterMenuWindow(label: []const u8) void {
     if (comptime @hasDecl(menu_impl, "unregisterWindow")) menu_impl.unregisterWindow(label);
+}
+
+/// Introspection for hosts/tests: the `GtkMenuBar *` currently attached to `label`.
+///
+/// GTK keeps the bar as a widget packed into the window; Cocoa and Win32 install the menu on
+/// `NSApp`/`HWND` instead, so they return `null` here.
+pub fn menuBarFor(label: []const u8) ?*anyopaque {
+    if (comptime @hasDecl(menu_impl, "menuBarFor")) {
+        if (menu_impl.menuBarFor(label)) |handle| return @ptrCast(handle);
+    }
+    return null;
+}
+
+/// Whether the native tray backend still holds `id`.
+///
+/// A failed `create()` must not leave a half-registered entry behind; the tray regression test
+/// calls this after forcing `apply()` to fail.
+pub fn trayPresent(id: []const u8) bool {
+    if (comptime @hasDecl(tray_impl, "statusIconFor")) return tray_impl.statusIconFor(id) != null;
+    if (comptime @hasDecl(tray_impl, "statusItemFor")) return tray_impl.statusItemFor(id) != null;
+    if (comptime @hasDecl(tray_impl, "isVisible")) return tray_impl.isVisible(id) != null;
+    return false;
+}
+
+/// Clears the process-global native registries (tests and hosts that rebuild their state).
+pub fn resetForTesting() void {
+    if (comptime @hasDecl(menu_impl, "resetForTesting")) menu_impl.resetForTesting();
+    if (comptime @hasDecl(tray_impl, "resetForTesting")) tray_impl.resetForTesting();
 }
 
 /// Human-readable description of the selected backends (surfaced in `OK`/`SKIP` diagnostics).

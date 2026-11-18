@@ -14,8 +14,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const tray = @import("mod.zig");
-const menu = @import("../menu/mod.zig");
+const tray = @import("zts_tauri").tray;
+const menu = @import("zts_tauri").menu;
 const menu_macos = @import("../menu/native_macos.zig");
 const cstr = @import("../native_cstr.zig");
 
@@ -159,23 +159,39 @@ fn apply(entry: *Entry, options: tray.TrayIconOptions, snapshot: ?menu.Snapshot)
     zts_tray_set_visible(entry.handle, @intFromBool(entry.visible));
 }
 
+fn destroyEntry(entry: *Entry) void {
+    if (entry.attached) |handle| menu_macos.freeDetached(handle);
+    zts_tray_free(entry.handle);
+    gpa.free(entry.id);
+    if (entry.tooltip) |t| gpa.free(t);
+    if (entry.title) |t| gpa.free(t);
+    gpa.destroy(entry);
+}
+
 fn create(_: ?*anyopaque, id: []const u8, options: tray.TrayIconOptions, snapshot: ?menu.Snapshot) Error!void {
     if (find(id) != null) return update(null, id, options, snapshot);
 
     const owned = gpa.dupe(u8, id) catch return error.OutOfMemory;
     errdefer gpa.free(owned);
     const entry = gpa.create(Entry) catch return error.OutOfMemory;
-    errdefer gpa.destroy(entry);
-    entry.* = .{ .id = owned, .handle = undefined };
-
     const menu_on_left_click = options.show_menu_on_left_click orelse options.menu_on_left_click orelse false;
-    entry.handle = zts_tray_new(onEvent, entry, @intFromBool(menu_on_left_click)) orelse return error.Unavailable;
-
-    trays.append(gpa, entry) catch {
-        zts_tray_free(entry.handle);
-        return error.OutOfMemory;
+    const handle = zts_tray_new(onEvent, entry, @intFromBool(menu_on_left_click)) orelse {
+        gpa.destroy(entry);
+        return error.Unavailable;
     };
+    entry.* = .{ .id = owned, .handle = handle };
+    // Publish the entry only after `apply` succeeded. Freeing it while `trays` still holds the
+    // pointer is a use-after-free, which is what the pre-fix code did on every apply error.
+    errdefer {
+        if (entry.attached) |attached| menu_macos.freeDetached(attached);
+        zts_tray_free(entry.handle);
+        gpa.destroy(entry);
+    }
+
+    // Publish only after `apply` succeeded (the same rule as the GTK backend): the errdefer
+    // above frees the entry on failure, and `trays` must never point at freed memory.
     try apply(entry, options, snapshot);
+    trays.append(gpa, entry) catch return error.OutOfMemory;
 }
 
 fn update(_: ?*anyopaque, id: []const u8, options: tray.TrayIconOptions, snapshot: ?menu.Snapshot) Error!void {
@@ -186,12 +202,7 @@ fn update(_: ?*anyopaque, id: []const u8, options: tray.TrayIconOptions, snapsho
 fn remove(_: ?*anyopaque, id: []const u8) Error!void {
     for (trays.items, 0..) |entry, i| {
         if (!std.mem.eql(u8, entry.id, id)) continue;
-        if (entry.attached) |handle| menu_macos.freeDetached(handle);
-        zts_tray_free(entry.handle);
-        gpa.free(entry.id);
-        if (entry.tooltip) |t| gpa.free(t);
-        if (entry.title) |t| gpa.free(t);
-        gpa.destroy(entry);
+        destroyEntry(entry);
         _ = trays.orderedRemove(i);
         return;
     }
@@ -229,14 +240,7 @@ pub fn statusItemFor(id: []const u8) ?*anyopaque {
 }
 
 pub fn resetForTesting() void {
-    for (trays.items) |entry| {
-        if (entry.attached) |handle| menu_macos.freeDetached(handle);
-        zts_tray_free(entry.handle);
-        gpa.free(entry.id);
-        if (entry.tooltip) |t| gpa.free(t);
-        if (entry.title) |t| gpa.free(t);
-        gpa.destroy(entry);
-    }
+    for (trays.items) |entry| destroyEntry(entry);
     trays.clearRetainingCapacity();
     emitter = .{};
 }

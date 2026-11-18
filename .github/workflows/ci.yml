@@ -49,6 +49,8 @@ jobs:
           chmod +x ./zigw
           {
             python3 scripts/check-docs.py
+            python3 scripts/check-os-boundary.py --self-test
+            python3 scripts/check-os-boundary.py
             bash scripts/gitflow.sh --self-test
             node --test tests/ci/publish-check-run-summary.test.cjs
             ./zigw doctest
