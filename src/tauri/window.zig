@@ -491,6 +491,16 @@ pub const WindowRegistry = struct {
                     .resizable = spec.resizable,
                     .visible = spec.visible,
                     .always_on_top = spec.always_on_top,
+                    // Seed the extra snapshot with the creation intent. `applyExtras` re-sends
+                    // the FULL snapshot after every setter; leaving these at their defaults
+                    // would switch a dark window back to system on the next unrelated call.
+                    .extras = .{
+                        .theme = spec.theme,
+                        .skip_taskbar = spec.skip_taskbar,
+                        .content_protected = spec.content_protected,
+                        .visible_on_all_workspaces = spec.visible_on_all_workspaces,
+                        .always_on_bottom = spec.always_on_bottom,
+                    },
                 };
                 return;
             }
@@ -507,6 +517,13 @@ pub const WindowRegistry = struct {
             .resizable = spec.resizable,
             .visible = spec.visible,
             .always_on_top = spec.always_on_top,
+            .extras = .{
+                .theme = spec.theme,
+                .skip_taskbar = spec.skip_taskbar,
+                .content_protected = spec.content_protected,
+                .visible_on_all_workspaces = spec.visible_on_all_workspaces,
+                .always_on_bottom = spec.always_on_bottom,
+            },
         });
     }
 
@@ -1636,4 +1653,43 @@ test "M5-22 ②: all 19 applyExtras setters push a complete snapshot through cor
     try testing.expectEqual(true, last.bg_set);
     try testing.expectEqual(true, last.always_on_bottom);
     try testing.expectEqual(false, last.enabled);
+}
+
+test "creation-time extras survive the full-snapshot applyExtras path" {
+    var rec = core.RecordingHost.init(testing.allocator);
+    defer rec.deinit();
+    const win_id = try rec.host().createWindow(.{ .label = "main" });
+
+    var reg = WindowRegistry.init(testing.allocator, testing.io);
+    defer reg.deinit();
+    try reg.registerWindow(win_id, .{
+        .label = "main",
+        .theme = .dark,
+        .skip_taskbar = true,
+        .content_protected = true,
+        .visible_on_all_workspaces = true,
+        .always_on_bottom = true,
+    });
+
+    const S = rpc.Schema(.{ .window = Commands });
+    var router = S.bind(.{ .window = &reg });
+    const h = router.handler();
+
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var call_ctx: core.CallContext = .{ .host = rec.host(), .window_id = win_id };
+    var ctx = rpc.Ctx.init(testing.io, arena.allocator()).withEnv(&call_ctx);
+
+    var r = h.dispatch(arena.allocator(), &ctx, "plugin:window|set_ignore_cursor_events", "{\"label\":\"main\",\"value\":true}");
+    defer r.deinit();
+    try testing.expectEqual(core.IpcStatus.ok, r.status);
+    try testing.expectEqual(@as(usize, 1), rec.extras_log.items.len);
+
+    const sent = rec.extras_log.items[0].extras;
+    try testing.expectEqual(Theme.dark, sent.theme);
+    try testing.expectEqual(true, sent.skip_taskbar);
+    try testing.expectEqual(true, sent.content_protected);
+    try testing.expectEqual(true, sent.visible_on_all_workspaces);
+    try testing.expectEqual(true, sent.always_on_bottom);
+    try testing.expectEqual(true, sent.ignore_cursor_events);
 }
