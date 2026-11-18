@@ -132,3 +132,19 @@ Zig の二重所有エラーは「消費者が両モジュールを同じコン�
   並列ブランチとは分離した follow-up PR で扱う（`WindowExtrasSnapshot` は scalar のまま）。
 - 各ブランチは自分のバックエンドの baseline 行だけを削除し、`scripts/check-os-boundary.py` と
   `./zigw build test` / 対象 OS のクロスコンパイルで検証する。
+
+### 4.1 `icon_hash` follow-up（並列ブランチ完了後）
+
+`set_icon` は現在 `value: []const u8` を `Wyhash` するだけで、実際のアイコンを OS に渡していない。
+`WindowExtrasSnapshot` は scalar なので画像バイトを運べず、`transformImage()` は
+`string | number(rid) | number[]` を返し得る。したがって専用 API を追加する:
+
+- `core.Host` に `setWindowIcon(win, IconSpec)` を追加（`IconSpec = union { path, bytes, resource: u53 }`）。
+  `WindowRegistry` に `*ResourceTable` を保持し、`resource` を bytes に解決する。
+- `webview_host` / `bridge_host` / `wasm/host` / `RecordingHost` を更新。
+- `zts_webview.Engine.setWindowIcon` + GTK (`gtk_window_set_icon*`) / Win32 (`WM_SETICON`) /
+  macOS (`NSApplication setApplicationIconImage:` 等、per-window が無ければ app icon)。
+- `tauri/window.zig` の `set_icon` を untagged デコードに変更し、`WindowExtras.icon_hash` を削除。
+- これにより baseline の `icon_hash` 3 行も消える（フィールド自体が消えるため）。
+- テスト: `tests/native/integration.zig` に path / bytes / resource の 3 系統を追加
+  （Mock/Host の記録で検証。実アイコン描画は OS CI でのみ確認）。
