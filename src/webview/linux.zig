@@ -1059,11 +1059,129 @@ pub const LinuxGtkBackend = struct {
         (self.windows.getPtr(win_id) orelse return error.WindowNotFound).creation.center = true;
     }
 
-    /// GTK 3 honours `hiddenTitle` (empty title) and `userAgent`. The other string
-    /// options have no GTK equivalent; they stay in the scalar record instead of being dropped.
+    /// Maps the shared cursor enum to GDK's cursor name. Mirrors `tao`'s Linux table
+    /// (`platform_impl/linux/event_loop.rs`, `impl CursorIcon::to_str`).
+    fn cursorName(icon: foundation.CursorIcon) [*:0]const u8 {
+        return switch (icon) {
+            .default => "default",
+            .arrow => "arrow",
+            .crosshair => "crosshair",
+            .hand => "pointer",
+            .text => "text",
+            .move => "move",
+            .wait => "wait",
+            .help => "help",
+            .progress => "progress",
+            .not_allowed => "not-allowed",
+            .resize_ew => "ew-resize",
+            .resize_ns => "ns-resize",
+            .grab => "grab",
+            .grabbing => "grabbing",
+        };
+    }
+
+    /// GTK 3 has no per-window theme API: `gtk-application-prefer-dark-theme` on the default
+    /// `GtkSettings` is process-wide and is exactly what upstream `tao` toggles on Linux.
+    fn applyThemePreference(theme: foundation.Theme) void {
+        const settings = c.gtk_settings_get_default() orelse return;
+        const prefer_dark: c.gboolean = if (theme == .dark) 1 else 0;
+        c.g_object_set(
+            settings,
+            "gtk-application-prefer-dark-theme",
+            prefer_dark,
+            @as(?*anyopaque, null),
+        );
+    }
+
+    /// Applies the cursor shape / visibility to whichever widget represents the window. The
+    /// `GdkWindow` only exists after realization, so a pre-show call is a harmless no-op.
+    fn applyCursor(widget: *c.GtkWidget, icon: foundation.CursorIcon, visible: bool) void {
+        const display = c.gdk_display_get_default() orelse return;
+        const gdk_window = c.gtk_widget_get_window(widget) orelse return;
+        const cursor = if (visible)
+            c.gdk_cursor_new_from_name(display, cursorName(icon))
+        else
+            c.gdk_cursor_new_for_display(display, c.GDK_BLANK_CURSOR);
+        if (cursor) |cur| {
+            c.gdk_window_set_cursor(gdk_window, cur);
+            c.gdk_cursor_unref(cur);
+        }
+    }
+
+    /// Converts window-relative physical cursor coordinates (`cursor_x`/`cursor_y`) to GDK
+    /// root/screen coordinates and warps the pointer there.
+    ///
+    /// `gdk_window_get_origin` reports root coordinates in the same physical/device space as
+    /// `gdk_monitor_get_geometry`: `centerWindow` divides that geometry by the scale factor only
+    /// because `gtk_window_move` consumes logical pixels. Our input is already physical, so the
+    /// origin is added directly without scaling. (Wayland compositors may refuse the warp.)
+    fn warpCursor(widget: *c.GtkWidget, x: i32, y: i32) void {
+        const display = c.gdk_display_get_default() orelse return;
+        const seat = c.gdk_display_get_default_seat(display) orelse return;
+        const pointer = c.gdk_seat_get_pointer(seat) orelse return;
+        const gdk_window = c.gtk_widget_get_window(widget) orelse return;
+        const screen = c.gtk_widget_get_screen(widget) orelse return;
+        var root_x: c.gint = 0;
+        var root_y: c.gint = 0;
+        _ = c.gdk_window_get_origin(gdk_window, &root_x, &root_y);
+        c.gdk_device_warp(pointer, screen, root_x + x, root_y + y);
+    }
+
+    /// Confines / releases the pointer with the GDK seat grab. Upstream `tao` leaves this a
+    /// no-op on Linux; GDK 3.20+ exposes a real per-seat grab, so use it.
+    fn setCursorGrab(widget: *c.GtkWidget, grab: bool) void {
+        const display = c.gdk_display_get_default() orelse return;
+        const seat = c.gdk_display_get_default_seat(display) orelse return;
+        if (!grab) {
+            c.gdk_seat_ungrab(seat);
+            return;
+        }
+        const gdk_window = c.gtk_widget_get_window(widget) orelse return;
+        _ = c.gdk_seat_grab(
+            seat,
+            gdk_window,
+            c.GDK_SEAT_CAPABILITY_POINTER,
+            0,
+            null,
+            null,
+            null,
+            null,
+        );
+    }
+
+    /// `ignore_cursor_events`: an empty input region makes the window transparent to the pointer.
+    fn setIgnoreCursorEvents(widget: *c.GtkWidget, ignore: bool) void {
+        const gdk_window = c.gtk_widget_get_window(widget) orelse return;
+        if (!ignore) {
+            c.gdk_window_input_shape_combine_region(gdk_window, null, 0, 0);
+            return;
+        }
+        const empty = c.cairo_region_create() orelse return;
+        defer c.cairo_region_destroy(empty);
+        c.gdk_window_input_shape_combine_region(gdk_window, empty, 0, 0);
+    }
+
+    /// Prepares a toplevel for a translucent WebView background. `gtk_widget_set_visual` only has
+    /// an effect before realization; once realized we keep the existing visual.
+    fn enableWindowTransparency(widget: *c.GtkWidget) void {
+        c.gtk_widget_set_app_paintable(widget, 1);
+        if (c.gtk_widget_get_realized(widget) != 0) return;
+        if (c.gtk_widget_get_screen(widget)) |screen| {
+            if (c.gdk_screen_get_rgba_visual(screen)) |visual| {
+                c.gtk_widget_set_visual(widget, visual);
+            }
+        }
+    }
+
+    /// GTK 3 honours `hiddenTitle` (empty title), `theme` (app-wide dark preference) and
+    /// `userAgent`. The other string options have no GTK equivalent; they stay in the scalar
+    /// record instead of being dropped.
     pub fn applyWindowCreationOptions(self: *LinuxGtkBackend, win_id: types.WindowId, cfg: types.WindowConfig) types.WebviewError!void {
         const w = self.windows.getPtr(win_id) orelse return error.WindowNotFound;
         w.creation = types.creationOptions(cfg);
+        // GTK's `gtk-application-prefer-dark-theme` is process-wide, so it is applied here once
+        // per created window exactly like `tao`'s creation path.
+        applyThemePreference(cfg.theme);
         if (cfg.hidden_title) {
             if (w.toplevel) |top| c.gtk_window_set_title(@ptrCast(top), "");
         }
@@ -1074,17 +1192,63 @@ pub const LinuxGtkBackend = struct {
         }
     }
 
-    /// apply the GTK 3 flags we can honour, keep the full snapshot for determinism. Embedded
-    /// webviews have no `GtkWindow`; the host owns those OS flags, so only the snapshot is kept.
+    /// Applies what GTK 3 can honestly do for each `WindowExtrasSnapshot` field. Fields with no
+    /// GTK 3 API are read and annotated below instead of being silently dropped.
     pub fn applyWindowExtras(self: *LinuxGtkBackend, win_id: types.WindowId, extras: types.WindowExtrasSnapshot) types.WebviewError!void {
         const w = self.windows.getPtr(win_id) orelse return error.WindowNotFound;
+        const prev = w.extras;
         w.extras = extras;
-        const top = w.toplevel orelse return;
-        const win: *c.GtkWindow = @ptrCast(top);
-        c.gtk_window_set_skip_taskbar_hint(win, if (extras.skip_taskbar) 1 else 0);
-        c.gtk_window_set_keep_below(win, if (extras.always_on_bottom) 1 else 0);
-        c.gtk_widget_set_sensitive(@ptrCast(win), if (extras.enabled) 1 else 0);
-        if (extras.visible_on_all_workspaces) c.gtk_window_stick(win) else c.gtk_window_unstick(win);
+
+        // App-wide `GtkSettings` preference; GTK 3 cannot theme one window independently.
+        applyThemePreference(extras.theme);
+
+        // GTK 3 itself has no taskbar progress / badge API. Upstream Tauri reaches the Unity
+        // launcher through an optional `libunity` dependency that this backend does not link.
+        _ = extras.progress_status;
+        _ = extras.progress_value;
+        _ = extras.badge_count;
+
+        // Capture protection and window shadow / blur effects are compositor or portal features
+        // with no portable GTK 3 call (upstream `tao` marks content protection unsupported too).
+        _ = extras.content_protected;
+        _ = extras.shadow;
+        _ = extras.effect;
+
+        // The WebView is the widget that fills either the toplevel or the host container, so all
+        // widget-level operations work for embedded windows without a `GtkWindow`.
+        const widget: *c.GtkWidget = if (w.toplevel) |t| t else @ptrCast(w.webview);
+
+        if (extras.bg_set) {
+            const rgba: c.GdkRGBA = .{
+                .red = @as(f64, @floatFromInt(extras.bg_r)) / 255.0,
+                .green = @as(f64, @floatFromInt(extras.bg_g)) / 255.0,
+                .blue = @as(f64, @floatFromInt(extras.bg_b)) / 255.0,
+                .alpha = @as(f64, @floatFromInt(extras.bg_a)) / 255.0,
+            };
+            c.webkit_web_view_set_background_color(w.webview, &rgba);
+            if (w.toplevel) |top| {
+                if (extras.bg_a < 255) enableWindowTransparency(top);
+            }
+        }
+
+        applyCursor(widget, extras.cursor_icon, extras.cursor_visible);
+        // Warp only when the request changed: `WindowExtrasSnapshot` is sent in full after every
+        // setter, so an unchanged (0, 0) default must not teleport the pointer.
+        if (prev.cursor_x != extras.cursor_x or prev.cursor_y != extras.cursor_y) {
+            warpCursor(widget, extras.cursor_x, extras.cursor_y);
+        }
+        if (prev.cursor_grab != extras.cursor_grab) setCursorGrab(widget, extras.cursor_grab);
+        setIgnoreCursorEvents(widget, extras.ignore_cursor_events);
+
+        if (w.toplevel) |top| {
+            const win: *c.GtkWindow = @ptrCast(top);
+            c.gtk_window_set_skip_taskbar_hint(win, if (extras.skip_taskbar) 1 else 0);
+            c.gtk_window_set_keep_below(win, if (extras.always_on_bottom) 1 else 0);
+            c.gtk_widget_set_sensitive(top, if (extras.enabled) 1 else 0);
+            if (extras.visible_on_all_workspaces) c.gtk_window_stick(win) else c.gtk_window_unstick(win);
+            // Every non-`none` attention level maps to the same WM urgency hint on Linux.
+            c.gtk_window_set_urgency_hint(win, if (extras.user_attention != .none) 1 else 0);
+        }
     }
 
     /// Calls `gtk_window_present` for a toplevel. An embedded webview has no `GtkWindow` and its
@@ -1178,6 +1342,19 @@ pub const LinuxGtkBackend = struct {
 // ============================================================================
 // Real Native GTK3 + WebKit2GTK 4.1 End-to-End Integration Test (Xvfb / Desktop)
 // ============================================================================
+
+test "Linux cursor mutation names match the upstream tao GTK table" {
+    try testing.expectEqualStrings("default", std.mem.span(LinuxGtkBackend.cursorName(.default)));
+    try testing.expectEqualStrings("arrow", std.mem.span(LinuxGtkBackend.cursorName(.arrow)));
+    try testing.expectEqualStrings("pointer", std.mem.span(LinuxGtkBackend.cursorName(.hand)));
+    try testing.expectEqualStrings("ew-resize", std.mem.span(LinuxGtkBackend.cursorName(.resize_ew)));
+    try testing.expectEqualStrings("ns-resize", std.mem.span(LinuxGtkBackend.cursorName(.resize_ns)));
+    try testing.expectEqualStrings("grabbing", std.mem.span(LinuxGtkBackend.cursorName(.grabbing)));
+    // The shared enum is exhaustive, so every variant must have a GDK name.
+    for (std.enums.values(foundation.CursorIcon)) |icon| {
+        try testing.expect(std.mem.span(LinuxGtkBackend.cursorName(icon)).len > 0);
+    }
+}
 
 test "LinuxGtkBackend renders HTML, injects UserScript, streams bidirectional binary & JSON over `tauri://` + `ipc://`, and shuts down with 0 leaks" {
     // Runs on real GTK3 + WebKit2GTK 4.1 whenever an X11/Wayland display (`xvfb-run` in CI!) is active;
