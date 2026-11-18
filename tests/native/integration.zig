@@ -19,6 +19,12 @@ const webview = @import("zts_webview");
 const native = @import("zts_tauri_native");
 const runtime_native = @import("zts_runtime_native");
 
+comptime {
+    // The wire layer and the webview backend must interpret the same ordinal table.
+    std.debug.assert(core.WindowTheme == tauri.window.Theme);
+    std.debug.assert(core.WindowTheme == @FieldType(webview.WindowConfig, "theme"));
+}
+
 test "1. headless composition: NativeRuntime installs vtables and fails closed without a native handle" {
     const rt = try zts.DesktopRuntime.create(testing.allocator, testing.io, .{
         .backend = .headless_mock,

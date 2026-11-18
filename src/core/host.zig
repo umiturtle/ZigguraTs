@@ -36,14 +36,7 @@ pub const StepMode = enum {
 
 /// What the OS tells the app about its title bar. `.system` means "not reported" — a page should
 /// then follow `prefers-color-scheme` instead of guessing.
-pub const WindowTheme = enum {
-    /// Follow the OS look (and its live light/dark switch).
-    system,
-    /// Force the light palette.
-    light,
-    /// Force the dark palette.
-    dark,
-};
+pub const WindowTheme = foundation.window_extras.Theme;
 
 /// Declarative initial window creation specification.
 pub const WindowSpec = struct {

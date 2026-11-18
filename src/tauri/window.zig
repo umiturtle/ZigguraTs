@@ -298,15 +298,16 @@ pub const NativeStateChange = struct {
 };
 
 /// Title-bar theme requested by `set_theme` (`dark` / `light` / `system`).
-pub const Theme = enum { system, dark, light };
+/// Shared with `zts_foundation` so the webview backends and the wire layer cannot drift.
+pub const Theme = core.foundation.Theme;
 /// Taskbar progress-bar state accepted by `set_progress_bar`.
-pub const ProgressStatus = enum { none, normal, indeterminate, paused, @"error" };
+pub const ProgressStatus = core.foundation.ProgressStatus;
 /// Cursor shapes accepted by `set_cursor_icon`.
-pub const CursorIcon = enum { default, arrow, crosshair, hand, text, move, wait, help, progress, not_allowed, resize_ew, resize_ns, grab, grabbing };
+pub const CursorIcon = core.foundation.CursorIcon;
 /// User-attention levels accepted by `request_user_attention`.
-pub const AttentionType = enum { none, critical, informational };
+pub const AttentionType = core.foundation.AttentionType;
 /// Named background effects accepted by `set_effects`.
-pub const Effect = enum { none, blur, acrylic, mica, tabbed };
+pub const Effect = core.foundation.Effect;
 
 /// Pair of progress state and percentage used by `set_progress_bar`.
 pub const ProgressUpdate = struct { status: ProgressStatus, progress: ?u8 };
@@ -749,25 +750,25 @@ pub fn isWindowEventName(name: []const u8) bool {
 /// are the ones declared in THIS file; `core` never imports `tauri` (rule 2 / standalone modules).
 fn extrasSnapshot(e: *const WindowExtras) core.WindowExtrasSnapshot {
     return .{
-        .theme = @backingInt(e.theme),
+        .theme = e.theme,
         .skip_taskbar = e.skip_taskbar,
-        .progress_status = @backingInt(e.progress_status),
+        .progress_status = e.progress_status,
         .progress_value = e.progress_value,
         .badge_count = e.badge_count,
-        .cursor_icon = @backingInt(e.cursor_icon),
+        .cursor_icon = e.cursor_icon,
         .cursor_x = e.cursor_x,
         .cursor_y = e.cursor_y,
         .cursor_grab = e.cursor_grab,
         .cursor_visible = e.cursor_visible,
         .ignore_cursor_events = e.ignore_cursor_events,
         .centered = e.centered,
-        .user_attention = @backingInt(e.user_attention),
+        .user_attention = e.user_attention,
         .content_protected = e.content_protected,
         .visible_on_all_workspaces = e.visible_on_all_workspaces,
         .shadow = e.shadow,
         .always_on_bottom = e.always_on_bottom,
         .enabled = e.enabled,
-        .effect = @backingInt(e.effect),
+        .effect = e.effect,
         .bg_set = e.bg_set,
         .bg_r = e.bg_r,
         .bg_g = e.bg_g,
@@ -1621,7 +1622,7 @@ test "M5-22 ②: all 19 applyExtras setters push a complete snapshot through cor
     }
 
     const last = rec.extras_log.items[calls.len - 1].extras;
-    try testing.expectEqual(@as(u8, 1), last.theme); // Theme.dark
+    try testing.expectEqual(Theme.dark, last.theme);
     try testing.expectEqual(true, last.skip_taskbar);
     try testing.expectEqual(@as(?u8, 42), last.progress_value);
     try testing.expectEqual(@as(?u32, 7), last.badge_count);

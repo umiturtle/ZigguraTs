@@ -2,25 +2,37 @@
 //!
 //! This module lives in `zts_foundation` (the only module every other product may depend on) so
 //! `zts_core`, `zts_tauri`, `zts_webview`, `zts_bridge` and the wasm host all exchange the SAME
-//! struct without creating a circular import. There are no allocations, no slices and no enums:
-//! the tauri-side enums travel as their ordinals, documented below.
+//! struct without creating a circular import. There are no allocations and no slices; the enums
+//! below use explicit backing integers, so the layout stays ABI-stable across modules while every
+//! backend sees the same ordinal table instead of re-deriving it from `tauri`.
+
+/// `tauri.window.Theme` — title-bar appearance requested by `set_theme`.
+pub const Theme = enum(u8) { system, dark, light };
+/// `tauri.window.ProgressStatus` — taskbar / dock progress state.
+pub const ProgressStatus = enum(u8) { none, normal, indeterminate, paused, @"error" };
+/// `tauri.window.CursorIcon` — cursor shapes accepted by `set_cursor_icon`.
+pub const CursorIcon = enum(u16) { default, arrow, crosshair, hand, text, move, wait, help, progress, not_allowed, resize_ew, resize_ns, grab, grabbing };
+/// `tauri.window.AttentionType` — user-attention levels.
+pub const AttentionType = enum(u8) { none, critical, informational };
+/// `tauri.window.Effect` — background effects accepted by `set_effects`.
+pub const Effect = enum(u8) { none, blur, acrylic, mica, tabbed };
 
 /// One complete snapshot of the `plugin:window` P1 #8 setter state. `core.Host.applyWindowExtras`
 /// receives this after EVERY setter; a backend applies what its OS supports and fail-closes the
 /// rest with `error.Unsupported`.
 pub const WindowExtrasSnapshot = struct {
-    /// `tauri.window.Theme` ordinal (`system, dark, light`).
-    theme: u8 = 0,
+    /// Requested title-bar appearance.
+    theme: Theme = .system,
     /// Hide the window from the taskbar / dock.
     skip_taskbar: bool = false,
-    /// `tauri.window.ProgressStatus` ordinal.
-    progress_status: u8 = 0,
+    /// Taskbar / dock progress state.
+    progress_status: ProgressStatus = .none,
     /// Progress percentage (0..100), or `null`.
     progress_value: ?u8 = null,
     /// Dock / taskbar badge count, or `null`.
     badge_count: ?u32 = null,
-    /// `tauri.window.CursorIcon` ordinal.
-    cursor_icon: u16 = 0,
+    /// Current cursor shape.
+    cursor_icon: CursorIcon = .default,
     /// Cursor X in physical pixels.
     cursor_x: i32 = 0,
     /// Cursor Y in physical pixels.
@@ -33,8 +45,8 @@ pub const WindowExtrasSnapshot = struct {
     ignore_cursor_events: bool = false,
     /// Whether the window was centred.
     centered: bool = false,
-    /// `tauri.window.AttentionType` ordinal.
-    user_attention: u8 = 0,
+    /// Last requested user-attention type.
+    user_attention: AttentionType = .none,
     /// Block screenshots / screen capture.
     content_protected: bool = false,
     /// Show on every virtual desktop.
@@ -45,8 +57,8 @@ pub const WindowExtrasSnapshot = struct {
     always_on_bottom: bool = false,
     /// Whether the window accepts input.
     enabled: bool = true,
-    /// `tauri.window.Effect` ordinal.
-    effect: u8 = 0,
+    /// Requested background effect.
+    effect: Effect = .none,
     /// Whether a background colour was set.
     bg_set: bool = false,
     /// Background red channel.
@@ -81,6 +93,8 @@ test "WindowExtrasSnapshot defaults are deterministic and scalar-only" {
 /// `createWindow`, so no borrow outlives the call). Four backends store the SAME record, which is
 /// what rule 17 checks for 3-OS parity.
 pub const WindowCreationOptions = struct {
+    /// Requested title-bar appearance (`theme` in `tauri.conf.json` / `WindowSpec`).
+    theme: Theme = .system,
     /// Centre the window on the primary monitor.
     center: bool = false,
     /// Start maximised.

@@ -406,6 +406,8 @@ pub const WindowConfig = struct {
     devtools: bool = false,
     /// Painted before the first frame, so a dark theme does not flash white.
     background_color: ?Color = null,
+    /// Requested title-bar appearance (shared `zts_foundation.Theme` ordinal).
+    theme: foundation.Theme = .system,
     /// Optional native parent widget/view handle (`*GtkWidget` / `NSView*` / `HWND`) for embedding
     /// a WebView inside an existing game engine / broadcast dock window!
     parent_native_handle: ?*anyopaque = null,
@@ -449,6 +451,7 @@ pub const WindowConfig = struct {
 /// options are hashed so no borrow of the caller's config outlives `createWindow`.
 pub fn creationOptions(cfg: WindowConfig) WindowCreationOptions {
     return .{
+        .theme = cfg.theme,
         .center = cfg.center,
         .maximized = cfg.maximized,
         .skip_taskbar = cfg.skip_taskbar,

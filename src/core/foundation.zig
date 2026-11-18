@@ -46,6 +46,11 @@ pub const ScaleFactor = geometry.ScaleFactor;
 
 pub const WindowExtrasSnapshot = window_extras.WindowExtrasSnapshot;
 pub const WindowCreationOptions = window_extras.WindowCreationOptions;
+pub const Theme = window_extras.Theme;
+pub const ProgressStatus = window_extras.ProgressStatus;
+pub const CursorIcon = window_extras.CursorIcon;
+pub const AttentionType = window_extras.AttentionType;
+pub const Effect = window_extras.Effect;
 
 pub const ParsedUrl = url.ParsedUrl;
 pub const UrlError = url.UrlError;

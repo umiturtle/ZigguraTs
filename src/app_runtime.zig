@@ -203,6 +203,7 @@ pub const DesktopRuntime = struct {
             .fullscreen = spec.fullscreen,
             .devtools = spec.devtools,
             .background_color = spec.background_color,
+            .theme = spec.theme,
             // An empty spec URL means "create the window but do not navigate". This is how a
             // host opens a blank window (and how the OS-boundary integration test exercises
             // menu registration without starting WebKit's network process).
