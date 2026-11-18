@@ -318,6 +318,10 @@ z_ts.DesktopRuntime ── WindowObserver ──► zts_runtime_native.NativeRun
 
 ### 10.2 ベースラインに残した既知の負債（60 件）
 
+2026-11-18 から、バックエンド固有の 57 件を `feature/os-extras-{linux,macos,windows}` の
+3 ブランチで並列修正中。`icon_hash` の 3 件だけは、実画像を `WindowExtrasSnapshot`（scalar）では
+運べないため、`core.Host` に icon 専用の API を足す follow-up PR に分離した。
+
 `tests/native/baseline.txt` を参照。主なもの:
 
 - `WindowExtrasSnapshot` の no-op: `theme` / `progress_*` / `badge_count` / `cursor_*` /

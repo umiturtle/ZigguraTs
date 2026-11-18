@@ -112,3 +112,23 @@ Zig の二重所有エラーは「消費者が両モジュールを同じコン�
   `accelerator.Mods` など未公開の型がある場合は再公開が必要。
 - `native.zig` の `pub const menu/tray/dialog/clipboard` は型の同一性のために
   `@import("zts_tauri")` の再エクスポートへ置き換える（相対 import を残すと P1 が再発）。
+
+---
+
+## 4. 並列修正ブランチ（2026-11-18）
+
+`tests/native/baseline.txt` の 60 件のうち、バックエンド固有の **57 件**を 3 ブランチに分割して
+並列修正する。各ブランチは `408394f`（PR #32 + 共有 enum 化）を基点にする。
+
+| ブランチ | 担当ファイル | 対象 |
+|---|---|---|
+| `feature/os-extras-linux` | `src/webview/linux.zig`, `src/webview/gtk_bindings.zig` | Linux の 19 silent-noop（`icon_hash` を除く） |
+| `feature/os-extras-macos` | `src/webview/macos.zig`, `src/webview/macos_shim.m` | macOS の 18 silent-noop（`icon_hash` を除く） |
+| `feature/os-extras-windows` | `src/webview/windows.zig`, `src/webview/win32.zig`, `src/webview/webview2_com.zig` | Windows の 18 silent-noop + `setDarkMode` 未接続（`icon_hash` を除く） |
+
+- 共有ファイル（`src/core/*`, `src/webview/types.zig`, `src/webview/mod.zig`,
+  `src/tauri/*`, `build.zig`）は各ブランチで触らない。共有 enum は `408394f` で導入済み。
+- `icon_hash` の 3 件は、画像バイト/パスを `core.Host` 経由で運ぶ API 追加が必要なため、
+  並列ブランチとは分離した follow-up PR で扱う（`WindowExtrasSnapshot` は scalar のまま）。
+- 各ブランチは自分のバックエンドの baseline 行だけを削除し、`scripts/check-os-boundary.py` と
+  `./zigw build test` / 対象 OS のクロスコンパイルで検証する。
