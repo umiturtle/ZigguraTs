@@ -18,6 +18,7 @@
 
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
+#import <CoreGraphics/CoreGraphics.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -97,6 +98,10 @@ enum {
 @property (nonatomic, assign) BOOL closed;
 /// Host view this web view was embedded into (`M3-03`); `nil` for regular toplevel windows.
 @property (nonatomic, weak) NSView *parentView;
+/// Created with `transparent: true`: clears the window background and WebView fill.
+@property (nonatomic, assign) BOOL transparent;
+/// `NSVisualEffectView` installed behind the WebView by `zts_macos_window_set_effect`.
+@property (nonatomic, strong) NSView *effectView;
 @property (nonatomic, assign) BOOL has_min;
 @property (nonatomic, assign) BOOL has_max;
 @property (nonatomic, assign) double min_w;
@@ -109,6 +114,8 @@ enum {
 
 @interface ZtsWebView : WKWebView
 @property (nonatomic, strong) NSEvent *ztsLastMouseDown;
+/// Explicit `set_cursor_icon` override; `nil` lets WebKit manage cursor rects (`.default`).
+@property (nonatomic, strong) NSCursor *ztsOverrideCursor;
 @end
 
 #pragma mark - Backend
@@ -130,6 +137,14 @@ enum {
 @property (nonatomic, assign) zts_macos_close_cb closeCb;
 @property (nonatomic, assign) void *stateUserdata;
 @property (nonatomic, assign) zts_macos_state_cb stateCb;
+/// `CGDisplayHideCursor` state, paired with exactly one `CGDisplayShowCursor`.
+@property (nonatomic, assign) BOOL cursorHidden;
+/// App-wide Dock-tile progress indicator created by `zts_macos_set_progress`.
+@property (nonatomic, strong) NSProgressIndicator *dockProgress;
+/// Dock tile content view that existed before we replaced it (restored on `none`).
+@property (nonatomic, strong) NSView *dockOriginalContentView;
+/// We created an `NSImageView` because the Dock tile had no content view; restore `nil`.
+@property (nonatomic, assign) BOOL dockTileOwnedByUs;
 @end
 
 #pragma mark - Scheme handler
@@ -144,6 +159,10 @@ enum {
 #pragma mark - Helpers
 
 static inline ZtsBackend *ZtsB(void *h) { return (__bridge ZtsBackend *)h; }
+
+/// Defined with the Dock-progress implementation below; declared here so backend teardown can
+/// restore `NSAPP.dockTile.contentView` even if a progress bar is still installed.
+static void ZtsClearDockProgress(ZtsBackend *b, NSDockTile *tile);
 
 static inline NSString *ZtsStr(const char *s) {
     if (s == NULL) return nil;
@@ -237,6 +256,15 @@ static void ZtsAnswerPreflight(ZtsBackend *b, id<WKURLSchemeTask> task,
 @end
 
 @implementation ZtsWebView
+
+- (void)resetCursorRects {
+    [super resetCursorRects];
+    // An explicit `set_cursor_icon` wins over the WebView's content cursor; `.default` clears
+    // `ztsOverrideCursor` and lets WebKit install its own rects again.
+    if (self.ztsOverrideCursor != nil) {
+        [self addCursorRect:self.bounds cursor:self.ztsOverrideCursor];
+    }
+}
 
 - (void)mouseDown:(NSEvent *)event {
     self.ztsLastMouseDown = event;
@@ -523,6 +551,21 @@ void zts_macos_backend_free(void *h) {
         [b.tasks removeAllObjects];
         [b.schemeHandlers removeAllObjects];
         b.config = nil;
+
+        // Cursor visibility is process-wide (`CGDisplayHideCursor` nests a hide count), so a
+        // backend torn down while `set_cursor_visible(false)` was active must restore the pointer
+        // instead of leaving the whole application cursorless.
+        if (b.cursorHidden) {
+            CGDisplayShowCursor(CGMainDisplayID());
+            b.cursorHidden = NO;
+        }
+
+        // The Dock tile is app-wide and outlives this backend; restore its original content view
+        // so a progress bar cannot keep replacing the application icon after teardown.
+        if (b.dockProgress != nil || b.dockOriginalContentView != nil || b.dockTileOwnedByUs) {
+            NSDockTile *tile = [NSApp dockTile];
+            if (tile != nil) ZtsClearDockProgress(b, tile);
+        }
 
         // Explicitly drop the last reference inside the pool so ARC releases before returning.
         b = nil;
@@ -837,6 +880,7 @@ unsigned long long zts_macos_window_new(
         rec.delegate = delegate;
         rec.ident = ident;
         rec.closed = NO;
+        rec.transparent = transparent ? YES : NO;
         b.windows[@(ident)] = rec;
         msgHandler.ident = ident;
 
@@ -956,6 +1000,368 @@ void zts_macos_apply_creation_options(void *h, unsigned long long ident, int hid
         if (tabbing != NULL && *tabbing != '\0') {
             win.tabbingIdentifier = ZtsStr(tabbing);
         }
+    }
+}
+
+#pragma mark - `plugin:window` P1 #8 extras
+
+/// Only toplevel windows are ours to decorate; embedded webviews defer to the host window.
+static NSWindow *ZtsOwnedWindowFor(void *h, unsigned long long ident) {
+    ZtsWindow *rec = ZtsWindowFor(ZtsB(h), ident);
+    if (rec == nil || rec.parentView != nil) return nil;
+    return rec.window;
+}
+
+/// `zts_foundation.Theme` ordinals: system = 0, dark = 1, light = 2. App-wide, like tao.
+void zts_macos_set_theme(int theme) {
+    @autoreleasepool {
+        if (@available(macOS 10.14, *)) {
+            NSAppearance *appearance = nil;
+            if (theme == 1) {
+                appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+            } else if (theme == 2) {
+                appearance = [NSAppearance appearanceNamed:NSAppearanceNameAqua];
+            }
+            // `system` (0) is represented by nil, so AppKit follows the user's setting again.
+            [NSApp setAppearance:appearance];
+        } else {
+            (void)theme;
+        }
+    }
+}
+
+void zts_macos_window_set_background(void *h, unsigned long long ident, int set,
+                                     int r, int g, int b, int a) {
+    ZtsWindow *rec = ZtsWindowFor(ZtsB(h), ident);
+    NSWindow *win = ZtsOwnedWindowFor(h, ident);
+    if (rec == nil || win == nil) return;
+    @autoreleasepool {
+        NSColor *color;
+        if (set) {
+            color = [NSColor colorWithSRGBRed:(CGFloat)r / 255.0
+                                        green:(CGFloat)g / 255.0
+                                         blue:(CGFloat)b / 255.0
+                                        alpha:(CGFloat)a / 255.0];
+        } else if (rec.transparent) {
+            color = [NSColor clearColor];
+        } else {
+            // `NSWindow.backgroundColor` is non-null; restore the system default rather than nil.
+            color = [NSColor windowBackgroundColor];
+        }
+        [win setBackgroundColor:color];
+
+        // The window colour can only show through when WebKit does not paint its own opaque
+        // backdrop. A created-transparent window keeps its transparency after a colour is cleared.
+        BOOL transparentWebview = (set != 0) || rec.transparent;
+        @try {
+            [rec.webview setValue:@(!transparentWebview) forKey:@"drawsBackground"];
+        } @catch (NSException *exception) {
+            (void)exception;
+        }
+    }
+}
+
+/// App-wide Dock badge. `has_count == 0` clears it (tao passes `None` to `setBadgeLabel:`).
+void zts_macos_set_badge_count(void *h, int has_count, unsigned int count) {
+    ZtsBackend *b = ZtsB(h);
+    if (b == nil) return;
+    @autoreleasepool {
+        NSDockTile *tile = [NSApp dockTile];
+        if (tile == nil) return;
+        tile.badgeLabel = has_count ? [NSString stringWithFormat:@"%u", count] : nil;
+    }
+}
+
+static void ZtsApplyVisualEffectMaterial(NSVisualEffectView *view, int effect) {
+    // AppKit has no exact blur/acrylic/mica vocabulary (those are Windows/toolkit names); these
+    // are the closest native materials. The caller's `windowEffects` intent is still recorded in
+    // `WindowCreationOptions.window_effects_hash`, so no request is silently dropped.
+    if (@available(macOS 10.14, *)) {
+        switch (effect) {
+            case 1: // blur
+                view.material = NSVisualEffectMaterialUnderWindowBackground;
+                return;
+            case 3: // mica — no AppKit equivalent; FullScreenUI is the nearest full-window wash.
+                view.material = NSVisualEffectMaterialFullScreenUI;
+                return;
+            default:
+                break;
+        }
+    }
+    switch (effect) {
+        case 2: // acrylic — HUD chrome is the nearest translucent material.
+            view.material = NSVisualEffectMaterialHUDWindow;
+            break;
+        case 4: // tabbed
+            view.material = NSVisualEffectMaterialTitlebar;
+            break;
+        default:
+            view.material = NSVisualEffectMaterialTitlebar;
+            break;
+    }
+}
+
+/// Inserts (or removes) an `NSVisualEffectView` behind the WebView. `none` restores the WebView
+/// as the window's content view, so a later `set_effect`/close cannot leave a dead hierarchy.
+void zts_macos_window_set_effect(void *h, unsigned long long ident, int effect) {
+    ZtsWindow *rec = ZtsWindowFor(ZtsB(h), ident);
+    NSWindow *win = ZtsOwnedWindowFor(h, ident);
+    if (rec == nil || win == nil) return;
+    @autoreleasepool {
+        if (effect == 0) {
+            if (rec.effectView != nil) {
+                NSView *effect_view = rec.effectView;
+                NSView *webview = rec.webview;
+                [webview removeFromSuperview];
+                if (win.contentView == effect_view) {
+                    win.contentView = webview;
+                }
+                [effect_view removeFromSuperview];
+                rec.effectView = nil;
+            }
+            return;
+        }
+
+        if (rec.effectView == nil) {
+            NSView *webview = rec.webview;
+            if (webview == nil) return;
+            NSView *old_content = win.contentView;
+            NSRect bounds = old_content != nil ? old_content.bounds : win.contentLayoutRect;
+            [webview removeFromSuperview];
+            NSVisualEffectView *effect_view = [[NSVisualEffectView alloc] initWithFrame:bounds];
+            effect_view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+            effect_view.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+            effect_view.state = NSVisualEffectStateActive;
+            win.contentView = effect_view;
+            webview.frame = effect_view.bounds;
+            webview.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+            [effect_view addSubview:webview];
+            rec.effectView = effect_view;
+        }
+        ZtsApplyVisualEffectMaterial((NSVisualEffectView *)rec.effectView, effect);
+    }
+}
+
+/// `zts_foundation.AttentionType`: none = 0, critical = 1, informational = 2. `none` has no
+/// AppKit counterpart (tao documents it as a no-op on macOS).
+void zts_macos_request_attention(int kind) {
+    @autoreleasepool {
+        if (kind == 1) {
+            (void)[NSApp requestUserAttention:NSCriticalRequest];
+        } else if (kind == 2) {
+            (void)[NSApp requestUserAttention:NSInformationalRequest];
+        }
+    }
+}
+
+void zts_macos_window_set_shadow(void *h, unsigned long long ident, int has_shadow) {
+    NSWindow *win = ZtsOwnedWindowFor(h, ident);
+    if (win == nil) return;
+    [win setHasShadow:(has_shadow ? YES : NO)];
+}
+
+/// AppKit cannot hide a single window from the Dock (the app owns one tile, and tao flags
+/// `skip_taskbar` as unsupported on macOS). `NSWindowCollectionBehaviorTransient` is the closest
+/// behaviour: the window is excluded from Exposé/Mission Control and hides with the app.
+void zts_macos_window_set_skip_taskbar(void *h, unsigned long long ident, int skip) {
+    NSWindow *win = ZtsOwnedWindowFor(h, ident);
+    if (win == nil) return;
+    NSWindowCollectionBehavior behavior = win.collectionBehavior;
+    if (skip) {
+        behavior |= NSWindowCollectionBehaviorTransient;
+    } else {
+        behavior &= ~NSWindowCollectionBehaviorTransient;
+    }
+    [win setCollectionBehavior:behavior];
+}
+
+/// Removes the Dock progress indicator and restores whatever content view existed before.
+static void ZtsClearDockProgress(ZtsBackend *b, NSDockTile *tile) {
+    if (b.dockProgress != nil) {
+        [b.dockProgress removeFromSuperview];
+        b.dockProgress = nil;
+    }
+    if (b.dockOriginalContentView != nil) {
+        tile.contentView = b.dockOriginalContentView;
+        b.dockOriginalContentView = nil;
+    } else if (b.dockTileOwnedByUs) {
+        // The tile had no content view: `nil` means "use the application icon again".
+        tile.contentView = nil;
+        b.dockTileOwnedByUs = NO;
+    }
+    [tile display];
+}
+
+/// Dock-tile progress (`zts_foundation.ProgressStatus`: none = 0, normal = 1,
+/// indeterminate = 2, paused = 3, error = 4). App-wide, like tao's `progress_bar.rs`.
+/// `paused`/`error` share the bar shape: `NSProgressIndicator` exposes no public tint, so the
+/// colour distinction is not expressible in AppKit (annotated, not silently dropped).
+void zts_macos_set_progress(void *h, int status, int has_value, int value) {
+    ZtsBackend *b = ZtsB(h);
+    if (b == nil) return;
+    @autoreleasepool {
+        NSDockTile *tile = [NSApp dockTile];
+        if (tile == nil) return;
+
+        if (status == 0) {
+            ZtsClearDockProgress(b, tile);
+            return;
+        }
+
+        if (b.dockProgress == nil) {
+            NSView *container = tile.contentView;
+            if (container == nil) {
+                // `NSDockTile.contentView` is nil until someone replaces the default icon view.
+                container = [[NSImageView alloc] initWithFrame:NSMakeRect(0, 0, tile.size.width,
+                                                                          tile.size.height)];
+                ((NSImageView *)container).image = [NSApp applicationIconImage];
+                tile.contentView = container;
+                b.dockTileOwnedByUs = YES;
+            } else {
+                b.dockOriginalContentView = container;
+            }
+            NSRect bounds = container.bounds;
+            CGFloat bar_width = bounds.size.width > 0 ? bounds.size.width : tile.size.width;
+            NSProgressIndicator *indicator =
+                [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(0, 0, bar_width, 12.0)];
+            indicator.style = NSProgressIndicatorStyleBar;
+            indicator.controlSize = NSControlSizeSmall;
+            indicator.minValue = 0.0;
+            indicator.maxValue = 100.0;
+            indicator.autoresizingMask = NSViewWidthSizable;
+            indicator.indeterminate = NO;
+            [container addSubview:indicator];
+            b.dockProgress = indicator;
+        }
+
+        NSProgressIndicator *indicator = b.dockProgress;
+        if (status == 2) {
+            indicator.indeterminate = YES;
+            [indicator startAnimation:nil];
+            indicator.hidden = NO;
+        } else {
+            [indicator stopAnimation:nil];
+            indicator.indeterminate = NO;
+            indicator.hidden = NO;
+            if (has_value) {
+                indicator.doubleValue = (double)value;
+            }
+        }
+        [tile display];
+    }
+}
+
+#pragma mark - Cursor
+
+/// Maps `zts_foundation.CursorIcon` ordinals 0..13 to `NSCursor` selectors (same spirit as
+/// tao's `util/cursor.rs`). Private selectors are probed with `respondsToSelector:` and fall back
+/// to the arrow cursor instead of throwing.
+static NSCursor *ZtsCursorForCode(int code) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+    switch (code) {
+        case 2:
+            return [NSCursor crosshairCursor];
+        case 3:
+            return [NSCursor pointingHandCursor];
+        case 4:
+            return [NSCursor IBeamCursor];
+        case 5: { // move: AppKit has no public move cursor; tao loads a WebKit resource.
+            SEL move_sel = NSSelectorFromString(@"_moveCursor");
+            if ([NSCursor respondsToSelector:move_sel]) return [NSCursor performSelector:move_sel];
+            return [NSCursor openHandCursor];
+        }
+        case 6: // wait
+        case 8: { // progress: Safari/Chrome use the undocumented busy cursor.
+            SEL busy_sel = NSSelectorFromString(@"busyButClickableCursor");
+            if ([NSCursor respondsToSelector:busy_sel]) return [NSCursor performSelector:busy_sel];
+            return [NSCursor arrowCursor];
+        }
+        case 7: { // help
+            SEL help_sel = NSSelectorFromString(@"_helpCursor");
+            if ([NSCursor respondsToSelector:help_sel]) return [NSCursor performSelector:help_sel];
+            return [NSCursor arrowCursor];
+        }
+        case 9:
+            return [NSCursor operationNotAllowedCursor];
+        case 10:
+            return [NSCursor resizeLeftRightCursor];
+        case 11:
+            return [NSCursor resizeUpDownCursor];
+        case 12:
+            return [NSCursor openHandCursor];
+        case 13:
+            return [NSCursor closedHandCursor];
+        case 0: // default
+        case 1: // arrow
+        default:
+            return [NSCursor arrowCursor];
+    }
+#pragma clang diagnostic pop
+}
+
+void zts_macos_set_cursor_icon(void *h, unsigned long long ident, int code) {
+    ZtsWindow *rec = ZtsWindowFor(ZtsB(h), ident);
+    if (rec == nil || rec.webview == nil) return;
+    @autoreleasepool {
+        // `ZtsWindow.webview` is declared as `WKWebView *`; the cursor override lives on our
+        // `ZtsWebView` subclass (`-resetCursorRects`).
+        ZtsWebView *webview = (ZtsWebView *)rec.webview;
+        NSWindow *win = webview.window ?: rec.window;
+        if (code == 0) {
+            // `.default`: hand cursor management back to WebKit's content cursor rects.
+            webview.ztsOverrideCursor = nil;
+            [[NSCursor arrowCursor] set];
+        } else {
+            NSCursor *cursor = ZtsCursorForCode(code);
+            webview.ztsOverrideCursor = cursor;
+            [cursor set];
+        }
+        [win invalidateCursorRectsForView:webview];
+    }
+}
+
+/// `cursor_x`/`cursor_y` are physical pixels from the WebView's CSS top-left (same wire contract
+/// as the Tauri plugin). `CGWarpMouseCursorPosition` wants global display points with the primary
+/// display's top-left origin, so this converts points and flips the Y axis once.
+void zts_macos_set_cursor_position(void *h, unsigned long long ident, double x, double y) {
+    ZtsWindow *rec = ZtsWindowFor(ZtsB(h), ident);
+    if (rec == nil || rec.webview == nil) return;
+    @autoreleasepool {
+        NSWindow *win = rec.webview.window ?: rec.window;
+        if (win == nil) return;
+        CGFloat scale = win.backingScaleFactor > 0 ? win.backingScaleFactor : 1.0;
+        NSRect webview_in_window = [rec.webview convertRect:rec.webview.bounds toView:nil];
+        NSPoint window_point = NSMakePoint(webview_in_window.origin.x + (CGFloat)x / scale,
+                                           webview_in_window.origin.y + webview_in_window.size.height -
+                                               (CGFloat)y / scale);
+        NSPoint screen_point = [win convertPointToScreen:window_point];
+        NSArray<NSScreen *> *screens = [NSScreen screens];
+        CGFloat primary_height = screens.count > 0 ? screens[0].frame.size.height : 0.0;
+        CGPoint cg_point = CGPointMake(screen_point.x, primary_height - screen_point.y);
+        CGWarpMouseCursorPosition(cg_point);
+        // tao re-associates after a warp so the synthetic move does not suppress the next event.
+        CGAssociateMouseAndMouseCursorPosition(true);
+    }
+}
+
+void zts_macos_set_cursor_grab(int grab) {
+    CGAssociateMouseAndMouseCursorPosition(grab ? false : true);
+}
+
+/// Pairs exactly one `CGDisplayHideCursor` with one `CGDisplayShowCursor`. AppKit cursor state is
+/// process-wide, so the backend tracks it rather than nesting per-window requests.
+void zts_macos_set_cursor_visible(void *h, int visible) {
+    ZtsBackend *b = ZtsB(h);
+    if (b == nil) return;
+    BOOL hidden = visible ? NO : YES;
+    if (b.cursorHidden == hidden) return;
+    b.cursorHidden = hidden;
+    CGDirectDisplayID display = CGMainDisplayID();
+    if (hidden) {
+        CGDisplayHideCursor(display);
+    } else {
+        CGDisplayShowCursor(display);
     }
 }
 

@@ -133,6 +133,34 @@ const shim = struct {
     extern fn zts_macos_window_set_decorations(h: ?*anyopaque, ident: u64, value: c_int) void;
     extern fn zts_macos_apply_extras(h: ?*anyopaque, ident: u64, below: c_int, protect: c_int, all_spaces: c_int, accepts_input: c_int) void;
     extern fn zts_macos_apply_creation_options(h: ?*anyopaque, ident: u64, hidden_title: c_int, style: [*:0]const u8, user_agent: ?[*:0]const u8, tabbing: ?[*:0]const u8) void;
+
+    // -- `plugin:window` P1 #8 extras (`WindowExtrasSnapshot`) -----------------
+    // Ordinals are the shared `zts_foundation` enum values; the shim's C switch table mirrors
+    // them, and the "macOS shim ordinals" test below pins the hand-off.
+    /// App-wide `NSApp.appearance` (`Theme`: system=0, dark=1, light=2).
+    extern fn zts_macos_set_theme(theme: c_int) void;
+    /// Per-window `[NSWindow setBackgroundColor:]`; `set == 0` restores the default/transparent clear.
+    extern fn zts_macos_window_set_background(h: ?*anyopaque, ident: u64, set: c_int, r: c_int, g: c_int, b: c_int, a: c_int) void;
+    /// App-wide `NSApp.dockTile.badgeLabel`; `has_count == 0` clears it.
+    extern fn zts_macos_set_badge_count(h: ?*anyopaque, has_count: c_int, count: c_uint) void;
+    /// App-wide Dock-tile progress indicator (`ProgressStatus`: none=0 … error=4).
+    extern fn zts_macos_set_progress(h: ?*anyopaque, status: c_int, has_value: c_int, value: c_int) void;
+    /// `NSCursor` selector for `CursorIcon` (shared ordinals 0..13).
+    extern fn zts_macos_set_cursor_icon(h: ?*anyopaque, ident: u64, icon: c_int) void;
+    /// `CGWarpMouseCursorPosition`; x/y are physical pixels from the WebView's CSS top-left.
+    extern fn zts_macos_set_cursor_position(h: ?*anyopaque, ident: u64, x: f64, y: f64) void;
+    /// `CGAssociateMouseAndMouseCursorPosition(!grab)`.
+    extern fn zts_macos_set_cursor_grab(grab: c_int) void;
+    /// Pairs `CGDisplayHideCursor` / `CGDisplayShowCursor` (app-wide, as AppKit cursors are).
+    extern fn zts_macos_set_cursor_visible(h: ?*anyopaque, visible: c_int) void;
+    /// `[NSApp requestUserAttention:]` (`AttentionType`: critical=1, informational=2).
+    extern fn zts_macos_request_attention(kind: c_int) void;
+    /// `[NSWindow setHasShadow:]`.
+    extern fn zts_macos_window_set_shadow(h: ?*anyopaque, ident: u64, has_shadow: c_int) void;
+    /// `NSVisualEffectView` behind the WebView (`Effect`: none=0 … tabbed=4).
+    extern fn zts_macos_window_set_effect(h: ?*anyopaque, ident: u64, effect: c_int) void;
+    /// Closest AppKit approximation (no per-window Dock entry exists).
+    extern fn zts_macos_window_set_skip_taskbar(h: ?*anyopaque, ident: u64, skip: c_int) void;
     extern fn zts_macos_window_set_always_on_top(h: ?*anyopaque, ident: u64, value: c_int) void;
     extern fn zts_macos_window_set_focus(h: ?*anyopaque, ident: u64) void;
     extern fn zts_macos_window_start_drag(h: ?*anyopaque, ident: u64) void;
@@ -206,6 +234,46 @@ const SnapshotSlot = struct {
 
 fn sameWindow(a: types.WindowId, b: types.WindowId) bool {
     return a.index == b.index and a.generation == b.generation;
+}
+
+// ---------------------------------------------------------------------------
+// `WindowExtrasSnapshot` → shim argument policy
+//
+// The snapshot is complete state, not a delta: `core.Host` re-sends every field after EVERY
+// setter. AppKit treats some requests as one-shot or app-wide, so pushing them unconditionally
+// would warp the pointer on an unrelated `set_size`, restart Dock attention, or clear another
+// window's badge. These pure helpers decide when a field is a real transition; the native state
+// remains in `MacWindow.extras` so callers can still inspect the last intent.
+// ---------------------------------------------------------------------------
+
+/// Percentages outside 0..100 are ignored by `NSProgressIndicator`; clamp like tao does.
+fn progressPercent(value: ?u8) c_int {
+    return if (value) |v| @intCast(@min(v, 100)) else 0;
+}
+
+/// The Dock badge is a string label; `null` means "no badge".
+fn badgeNumber(count: ?u32) c_uint {
+    return count orelse 0;
+}
+
+/// `set_cursor_position` is one-shot: only warp when the requested physical point changed.
+fn cursorPositionChanged(prev: types.WindowExtrasSnapshot, next: types.WindowExtrasSnapshot) bool {
+    return prev.cursor_x != next.cursor_x or prev.cursor_y != next.cursor_y;
+}
+
+/// `requestUserAttention:` bounces the Dock icon; do not re-fire it for every unrelated setter.
+fn attentionRequested(prev: foundation.AttentionType, next: foundation.AttentionType) ?foundation.AttentionType {
+    if (next == .none) return null;
+    if (prev == next) return null;
+    return next;
+}
+
+/// Background is per-window and idempotent, but avoid a needless WebView transparency flip.
+fn backgroundChanged(prev: types.WindowExtrasSnapshot, next: types.WindowExtrasSnapshot) bool {
+    if (prev.bg_set != next.bg_set) return true;
+    if (!next.bg_set) return false;
+    return prev.bg_r != next.bg_r or prev.bg_g != next.bg_g or
+        prev.bg_b != next.bg_b or prev.bg_a != next.bg_a;
 }
 
 /// Native `NSWindow` frame in Cocoa coordinates (origin = bottom-left, Y grows upwards).
@@ -851,11 +919,16 @@ pub const MacOsBackend = struct {
         (try self.requireWindow(win_id)).creation.center = true;
     }
 
-    /// Cocoa honours `hiddenTitle`, `titleBarStyle`, `userAgent` and
+    /// Cocoa honours `theme`, `hiddenTitle`, `titleBarStyle`, `userAgent` and
     /// `tabbingIdentifier`; the rest stay in the scalar record for 3-OS parity.
     pub fn applyWindowCreationOptions(self: *MacOsBackend, win_id: types.WindowId, cfg: types.WindowConfig) types.WebviewError!void {
         const w = try self.requireWindow(win_id);
         w.creation = types.creationOptions(cfg);
+        // Theme is app-wide in AppKit (`NSApp.appearance`), exactly like upstream tao. Record the
+        // applied value so a later runtime setter compares against the real native state instead
+        // of the snapshot default (`system`) and can switch back to system.
+        shim.zts_macos_set_theme(@backingInt(cfg.theme));
+        w.extras.theme = cfg.theme;
         const style = self.allocator.dupeSentinel(u8, cfg.title_bar_style, 0) catch return error.OutOfMemory;
         defer self.allocator.free(style);
         const ua = if (cfg.user_agent) |v| self.allocator.dupeSentinel(u8, v, 0) catch return error.OutOfMemory else null;
@@ -874,9 +947,15 @@ pub const MacOsBackend = struct {
 
     /// push the OS-supported flags through the Cocoa shim; the full snapshot stays in
     /// `MacWindow.extras` so every platform reports the same intent back to Zig.
+    ///
+    /// AppKit is app-wide for appearance, the Dock badge/progress and user attention (upstream
+    /// tao has the same limitation), so those are forwarded only on a real transition. Cursor
+    /// visibility/warp are one-shot pointer actions and are likewise transition-gated.
     pub fn applyWindowExtras(self: *MacOsBackend, win_id: types.WindowId, extras: types.WindowExtrasSnapshot) types.WebviewError!void {
         const w = try self.requireWindow(win_id);
+        const prev = w.extras;
         w.extras = extras;
+
         shim.zts_macos_apply_extras(
             self.handle,
             w.native,
@@ -885,6 +964,77 @@ pub const MacOsBackend = struct {
             @intFromBool(extras.visible_on_all_workspaces),
             @intFromBool(extras.enabled and !extras.ignore_cursor_events),
         );
+
+        // App-wide title-bar appearance (`NSAppearanceNameDarkAqua` / `NSAppearanceNameAqua`).
+        if (prev.theme != extras.theme) {
+            shim.zts_macos_set_theme(@backingInt(extras.theme));
+        }
+
+        // Cursor shape: `.default` hands control back to WebKit's cursor rects.
+        if (prev.cursor_icon != extras.cursor_icon) {
+            shim.zts_macos_set_cursor_icon(self.handle, w.native, @backingInt(extras.cursor_icon));
+        }
+        // Cursor position is physical pixels from the WebView's CSS top-left; warp only on change.
+        if (cursorPositionChanged(prev, extras)) {
+            shim.zts_macos_set_cursor_position(
+                self.handle,
+                w.native,
+                @floatFromInt(extras.cursor_x),
+                @floatFromInt(extras.cursor_y),
+            );
+        }
+        // `CGAssociateMouseAndMouseCursorPosition` is global; gating keeps every transition paired.
+        if (prev.cursor_grab != extras.cursor_grab) {
+            shim.zts_macos_set_cursor_grab(@intFromBool(extras.cursor_grab));
+        }
+        // `CGDisplayHideCursor` / `CGDisplayShowCursor` must pair exactly once per transition.
+        if (prev.cursor_visible != extras.cursor_visible) {
+            shim.zts_macos_set_cursor_visible(self.handle, @intFromBool(extras.cursor_visible));
+        }
+
+        // App-wide Dock state: the badge, progress and attention bounce belong to the app, not
+        // the window, so only a changed snapshot may update them.
+        if (prev.badge_count != extras.badge_count) {
+            shim.zts_macos_set_badge_count(
+                self.handle,
+                @intFromBool(extras.badge_count != null),
+                badgeNumber(extras.badge_count),
+            );
+        }
+        if (prev.progress_status != extras.progress_status or prev.progress_value != extras.progress_value) {
+            shim.zts_macos_set_progress(
+                self.handle,
+                @backingInt(extras.progress_status),
+                @intFromBool(extras.progress_value != null),
+                progressPercent(extras.progress_value),
+            );
+        }
+        if (attentionRequested(prev.user_attention, extras.user_attention)) |kind| {
+            shim.zts_macos_request_attention(@backingInt(kind));
+        }
+
+        // Per-window Cocoa appearance.
+        if (prev.shadow != extras.shadow) {
+            shim.zts_macos_window_set_shadow(self.handle, w.native, @intFromBool(extras.shadow));
+        }
+        if (prev.effect != extras.effect) {
+            shim.zts_macos_window_set_effect(self.handle, w.native, @backingInt(extras.effect));
+        }
+        // AppKit has no per-window Dock entry; the shim maps this to its closest approximation.
+        if (prev.skip_taskbar != extras.skip_taskbar) {
+            shim.zts_macos_window_set_skip_taskbar(self.handle, w.native, @intFromBool(extras.skip_taskbar));
+        }
+        if (backgroundChanged(prev, extras)) {
+            shim.zts_macos_window_set_background(
+                self.handle,
+                w.native,
+                @intFromBool(extras.bg_set),
+                extras.bg_r,
+                extras.bg_g,
+                extras.bg_b,
+                extras.bg_a,
+            );
+        }
     }
 
     /// Calls `makeKeyAndOrderFront:` on the main thread.
@@ -944,6 +1094,104 @@ pub const MacOsBackend = struct {
         shim.zts_macos_window_open_devtools(self.handle, w.native);
     }
 };
+
+// ============================================================================
+// Pure helper tests (run on every host, no Aqua session required)
+// ============================================================================
+
+test "progressPercent clamps percentages and treats null as zero" {
+    try testing.expectEqual(@as(c_int, 0), progressPercent(null));
+    try testing.expectEqual(@as(c_int, 0), progressPercent(0));
+    try testing.expectEqual(@as(c_int, 1), progressPercent(1));
+    try testing.expectEqual(@as(c_int, 42), progressPercent(42));
+    try testing.expectEqual(@as(c_int, 100), progressPercent(100));
+    try testing.expectEqual(@as(c_int, 100), progressPercent(101));
+    try testing.expectEqual(@as(c_int, 100), progressPercent(255));
+}
+
+test "badgeNumber maps null to zero and preserves every count" {
+    try testing.expectEqual(@as(c_uint, 0), badgeNumber(null));
+    try testing.expectEqual(@as(c_uint, 0), badgeNumber(0));
+    try testing.expectEqual(@as(c_uint, 7), badgeNumber(7));
+    try testing.expectEqual(@as(c_uint, 4_294_967_295), badgeNumber(std.math.maxInt(u32)));
+}
+
+test "cursorPositionChanged only fires on an actual coordinate transition" {
+    const base: types.WindowExtrasSnapshot = .{ .cursor_x = 10, .cursor_y = 20 };
+    try testing.expect(!cursorPositionChanged(base, base));
+    try testing.expect(!cursorPositionChanged(base, .{ .cursor_x = 10, .cursor_y = 20 }));
+    try testing.expect(cursorPositionChanged(base, .{ .cursor_x = 11, .cursor_y = 20 }));
+    try testing.expect(cursorPositionChanged(base, .{ .cursor_x = 10, .cursor_y = 21 }));
+    try testing.expect(!cursorPositionChanged(.{}, .{}));
+}
+
+test "attentionRequested ignores repeats and the none state" {
+    try testing.expectEqual(
+        @as(?foundation.AttentionType, null),
+        attentionRequested(.critical, .critical),
+    );
+    try testing.expectEqual(
+        @as(?foundation.AttentionType, null),
+        attentionRequested(.none, .none),
+    );
+    try testing.expectEqual(
+        @as(?foundation.AttentionType, .informational),
+        attentionRequested(.critical, .informational),
+    );
+    try testing.expectEqual(
+        @as(?foundation.AttentionType, null),
+        attentionRequested(.critical, .none),
+    );
+}
+
+test "backgroundChanged treats an unset colour as default state" {
+    const unset: types.WindowExtrasSnapshot = .{};
+    try testing.expect(!backgroundChanged(unset, unset));
+    try testing.expect(backgroundChanged(unset, .{ .bg_set = true, .bg_a = 255 }));
+    const set: types.WindowExtrasSnapshot = .{ .bg_set = true, .bg_r = 1, .bg_g = 2, .bg_b = 3, .bg_a = 255 };
+    try testing.expect(!backgroundChanged(set, .{ .bg_set = true, .bg_r = 1, .bg_g = 2, .bg_b = 3, .bg_a = 255 }));
+    try testing.expect(backgroundChanged(set, .{ .bg_set = true, .bg_r = 4, .bg_g = 2, .bg_b = 3, .bg_a = 255 }));
+    try testing.expect(backgroundChanged(set, .{ .bg_set = true, .bg_r = 1, .bg_g = 2, .bg_b = 3, .bg_a = 128 }));
+    try testing.expect(backgroundChanged(set, .{}));
+}
+
+test "macOS shim ordinals match the shared foundation enums" {
+    // `src/webview/macos_shim.m` switches on these raw ints. Pinning the table here means a
+    // reorder in `zts_foundation` becomes a compile-time test failure, not a silent mis-map.
+    try testing.expectEqual(@as(u8, 0), @backingInt(foundation.Theme.system));
+    try testing.expectEqual(@as(u8, 1), @backingInt(foundation.Theme.dark));
+    try testing.expectEqual(@as(u8, 2), @backingInt(foundation.Theme.light));
+
+    try testing.expectEqual(@as(u8, 0), @backingInt(foundation.ProgressStatus.none));
+    try testing.expectEqual(@as(u8, 1), @backingInt(foundation.ProgressStatus.normal));
+    try testing.expectEqual(@as(u8, 2), @backingInt(foundation.ProgressStatus.indeterminate));
+    try testing.expectEqual(@as(u8, 3), @backingInt(foundation.ProgressStatus.paused));
+    try testing.expectEqual(@as(u8, 4), @backingInt(foundation.ProgressStatus.@"error"));
+
+    try testing.expectEqual(@as(u8, 1), @backingInt(foundation.AttentionType.critical));
+    try testing.expectEqual(@as(u8, 2), @backingInt(foundation.AttentionType.informational));
+
+    try testing.expectEqual(@as(u8, 0), @backingInt(foundation.Effect.none));
+    try testing.expectEqual(@as(u8, 1), @backingInt(foundation.Effect.blur));
+    try testing.expectEqual(@as(u8, 2), @backingInt(foundation.Effect.acrylic));
+    try testing.expectEqual(@as(u8, 3), @backingInt(foundation.Effect.mica));
+    try testing.expectEqual(@as(u8, 4), @backingInt(foundation.Effect.tabbed));
+
+    try testing.expectEqual(@as(u16, 0), @backingInt(foundation.CursorIcon.default));
+    try testing.expectEqual(@as(u16, 1), @backingInt(foundation.CursorIcon.arrow));
+    try testing.expectEqual(@as(u16, 2), @backingInt(foundation.CursorIcon.crosshair));
+    try testing.expectEqual(@as(u16, 3), @backingInt(foundation.CursorIcon.hand));
+    try testing.expectEqual(@as(u16, 4), @backingInt(foundation.CursorIcon.text));
+    try testing.expectEqual(@as(u16, 5), @backingInt(foundation.CursorIcon.move));
+    try testing.expectEqual(@as(u16, 6), @backingInt(foundation.CursorIcon.wait));
+    try testing.expectEqual(@as(u16, 7), @backingInt(foundation.CursorIcon.help));
+    try testing.expectEqual(@as(u16, 8), @backingInt(foundation.CursorIcon.progress));
+    try testing.expectEqual(@as(u16, 9), @backingInt(foundation.CursorIcon.not_allowed));
+    try testing.expectEqual(@as(u16, 10), @backingInt(foundation.CursorIcon.resize_ew));
+    try testing.expectEqual(@as(u16, 11), @backingInt(foundation.CursorIcon.resize_ns));
+    try testing.expectEqual(@as(u16, 12), @backingInt(foundation.CursorIcon.grab));
+    try testing.expectEqual(@as(u16, 13), @backingInt(foundation.CursorIcon.grabbing));
+}
 
 // ============================================================================
 // Real Native Cocoa + WKWebView End-to-End Integration Test (GitHub Actions `macos-latest`)
